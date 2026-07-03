@@ -1,5 +1,6 @@
 // Egér- és billentyű-interakciók a vásznon: falrajzolás (kattintás + hossz
-// begépelése), kijelölés, végpont/fal/ív húzása, hossz-címke szerkesztése.
+// begépelése), kijelölés, végpont/fal/ív húzása, hossz-címke szerkesztése,
+// helyiség-kijelölés kattintással.
 
 import { getSvg, getOverlay, getScale, clientToWorld, beginPan, el } from './canvas.js';
 import { getPlan, findNodeNear, nodeById, wallById, addNode, addWall, deleteWall, mergeNodes, cleanupOrphanNodes, setWallLength, wallLengthOf, round1 } from './plan.js';
@@ -9,10 +10,12 @@ import { notify, activeLevel } from './state.js';
 import { snapshot, checkpoint } from './history.js';
 import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
+import { addRoomAt, renameRoom, recolorRoom, deleteRoom } from './rooms.js';
+import { showToast } from './toast.js';
 
-let svg, wrap, floatEl, editorEl;
+let svg, wrap, floatEl, editorEl, editorFinish;
 
-// rajzolás alatt: { lastNodeId, typed: '' } — az aktuális lánc állapota
+// rajzolás alatt: { lastNodeId, mouse, client, typed: '' } — az aktuális lánc állapota
 let draw = null;
 // húzás alatt: { kind: 'node'|'body'|'mid', ... }
 let drag = null;
@@ -40,9 +43,16 @@ export function initTools() {
   setTool('select');
 }
 
+const HINTS = {
+  wall: 'Kattints pontról pontra. Hossz: gépeld be cm-ben és Enter. Befejezés: jobb klikk / Esc / dupla katt. V: kijelölés.',
+  room: 'Kattints egy falakkal körbezárt terület belsejébe egy helyiség létrehozásához. V: kijelölés.',
+  select: 'Kattints falra vagy helyiségre a kijelöléshez; húzd a fal végpontját, testét, vagy a középső fogantyút (ív). A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség.',
+};
+
 export function setTool(tool) {
   ui.tool = tool;
   ui.selectedWallId = null;
+  ui.selectedRoomId = null;
   endChain();
   if (tool === 'wall') tryResumeChain();
   svg.dataset.tool = tool;
@@ -50,11 +60,7 @@ export function setTool(tool) {
     b.classList.toggle('active', b.dataset.tool === tool);
   }
   const hint = document.getElementById('tool-hint');
-  if (hint) {
-    hint.textContent = tool === 'wall'
-      ? 'Kattints pontról pontra. Hossz: gépeld be cm-ben és Enter. Befejezés: jobb klikk / Esc / dupla katt. V: kijelölés.'
-      : 'Kattints falra a kijelöléshez; húzd a végpontját, a testét, vagy a középső fogantyút (ív). A hossz-címkére kattintva pontos érték adható. Del: törlés. F: falrajzolás.';
-  }
+  if (hint) hint.textContent = HINTS[tool] || '';
   renderAll();
 }
 
@@ -85,6 +91,11 @@ function onDown(e) {
     return;
   }
 
+  if (ui.tool === 'room') {
+    placeRoom(plan, p, e.clientX, e.clientY);
+    return;
+  }
+
   // --- kijelölés mód ---
   const t = e.target;
   e.preventDefault(); // ne vigye el a fókuszt (pl. a hossz-szerkesztő inputról)
@@ -99,16 +110,46 @@ function onDown(e) {
     return;
   }
 
+  if (t.classList?.contains('room-name') || t.classList?.contains('room-area')) {
+    openRoomEditor(t.dataset.room, e.clientX, e.clientY);
+    return;
+  }
+
   if (t.dataset?.wall) {
     ui.selectedWallId = t.dataset.wall;
+    ui.selectedRoomId = null;
     renderAll();
     startBodyDrag(plan, t.dataset.wall, p);
     return;
   }
 
+  if (t.dataset?.room) {
+    ui.selectedRoomId = t.dataset.room;
+    ui.selectedWallId = null;
+    renderAll();
+    return;
+  }
+
   // üres területre kattintás: kijelölés törlése + pan
-  if (ui.selectedWallId) { ui.selectedWallId = null; renderAll(); }
+  if (ui.selectedWallId || ui.selectedRoomId) {
+    ui.selectedWallId = null;
+    ui.selectedRoomId = null;
+    renderAll();
+  }
   beginPan(e);
+}
+
+function placeRoom(plan, p, clientX, clientY) {
+  const before = snapshot();
+  const result = addRoomAt(plan, p);
+  if (!result.ok) {
+    showToast('A terület nincs teljesen körbezárva falakkal.');
+    return;
+  }
+  checkpoint(before);
+  ui.selectedRoomId = result.room.id;
+  renderAll();
+  if (!result.existing) openRoomEditor(result.room.id, clientX, clientY);
 }
 
 function onMove(e) {
@@ -120,26 +161,31 @@ function onKey(e) {
   if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
   if (ui.tool === 'wall' && draw) {
-    if (/^[0-9]$/.test(e.key)) { draw.typed += e.key; refreshFloat(); return; }
+    if (/^[0-9]$/.test(e.key)) { draw.typed += e.key; refreshFloat(draw.client, wallFloatText()); return; }
     if (e.key === '.' || e.key === ',') {
-      if (!draw.typed.includes('.')) { draw.typed += '.'; refreshFloat(); }
+      if (!draw.typed.includes('.')) { draw.typed += '.'; refreshFloat(draw.client, wallFloatText()); }
       return;
     }
-    if (e.key === 'Backspace') { draw.typed = draw.typed.slice(0, -1); refreshFloat(); return; }
+    if (e.key === 'Backspace') { draw.typed = draw.typed.slice(0, -1); refreshFloat(draw.client, wallFloatText()); return; }
     if (e.key === 'Enter') {
       if (draw.typed) commitTyped();
       else endChain();
       return;
     }
     if (e.key === 'Escape') {
-      if (draw.typed) { draw.typed = ''; refreshFloat(); }
+      if (draw.typed) { draw.typed = ''; refreshFloat(draw.client, wallFloatText()); }
       else endChain();
       return;
     }
   }
 
-  if (e.key === 'Escape' && ui.tool === 'wall') { setTool('select'); return; }
-  if (e.key === 'Escape' && ui.selectedWallId) { ui.selectedWallId = null; renderAll(); return; }
+  if (e.key === 'Escape' && (ui.tool === 'wall' || ui.tool === 'room')) { setTool('select'); return; }
+  if (e.key === 'Escape' && (ui.selectedWallId || ui.selectedRoomId)) {
+    ui.selectedWallId = null;
+    ui.selectedRoomId = null;
+    renderAll();
+    return;
+  }
   if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedWallId) {
     const before = snapshot();
     deleteWall(getPlan(), ui.selectedWallId);
@@ -147,8 +193,16 @@ function onKey(e) {
     ui.selectedWallId = null;
     return;
   }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedRoomId) {
+    const before = snapshot();
+    deleteRoom(getPlan(), ui.selectedRoomId);
+    checkpoint(before);
+    ui.selectedRoomId = null;
+    return;
+  }
   if (e.key === 'v' || e.key === 'V') setTool('select');
   if (e.key === 'f' || e.key === 'F') setTool('wall');
+  if (e.key === 'r' || e.key === 'R') setTool('room');
 }
 
 // ---------------------------------------------------------------- falrajzolás
@@ -163,7 +217,7 @@ function placePoint(plan, p) {
     checkpoint(before);
     draw = { lastNodeId: node.id, mouse: p, typed: '' };
     notify();
-    refreshFloat();
+    refreshFloat(draw.client, wallFloatText());
     return;
   }
 
@@ -209,15 +263,21 @@ function commitSegment(plan, end) {
   checkpoint(before);
   draw.lastNodeId = endNode.id;
   draw.typed = '';
-  refreshFloat();
+  refreshFloat(draw.client, wallFloatText());
 }
 
 function commitTyped() {
   const plan = getPlan();
   const len = parseFloat(draw.typed);
-  if (!(len > 0)) { draw.typed = ''; refreshFloat(); return; }
+  if (!(len > 0)) { draw.typed = ''; refreshFloat(draw.client, wallFloatText()); return; }
   const end = computeEnd(plan, draw.mouse, len);
   commitSegment(plan, end);
+}
+
+function wallFloatText(previewLen = null) {
+  if (draw.typed) return `<b>${draw.typed}</b> cm ⏎`;
+  if (previewLen != null) return `${Math.round(previewLen)} cm`;
+  return 'kattints a következő pontra, vagy gépeld a hosszt';
 }
 
 function updatePreview(e) {
@@ -250,22 +310,7 @@ function updatePreview(e) {
   }
   overlay.appendChild(g);
 
-  refreshFloat(end.len);
-}
-
-function refreshFloat(previewLen = null) {
-  if (!draw || !draw.client) { floatEl.hidden = true; return; }
-  const rect = wrap.getBoundingClientRect();
-  floatEl.style.left = `${draw.client.x - rect.left + 16}px`;
-  floatEl.style.top = `${draw.client.y - rect.top + 16}px`;
-  if (draw.typed) {
-    floatEl.innerHTML = `<b>${draw.typed}</b> cm ⏎`;
-  } else if (previewLen !== null) {
-    floatEl.textContent = `${Math.round(previewLen)} cm`;
-  } else {
-    floatEl.textContent = 'kattints a következő pontra, vagy gépeld a hosszt';
-  }
-  floatEl.hidden = false;
+  refreshFloat(draw.client, wallFloatText(end.len));
 }
 
 function endChain() {
@@ -285,6 +330,7 @@ function startHandleDrag(plan, kind, wallId, startP) {
   const w = wallById(plan, wallId);
   if (!w) return;
   const before = snapshot();
+  ui.dragging = true;
 
   if (kind === 'mid') {
     drag = { kind: 'mid', w, before };
@@ -300,6 +346,7 @@ function startBodyDrag(plan, wallId, startP) {
   if (!w) return;
   const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
   const before = snapshot();
+  ui.dragging = true;
   drag = { kind: 'body', w, orig: { ax: a.x, ay: a.y, bx: b.x, by: b.y }, start: startP, before };
   bindDrag(plan);
 }
@@ -369,6 +416,8 @@ function finishDrag(plan, p) {
   }
   if (drag) checkpoint(drag.before);
   drag = null;
+  ui.dragging = false;
+  renderAll(); // a húzás alatt gyorsítótárazott helyiség-nyomvonalak most frissülnek pontosra
 }
 
 // ------------------------------------------------- hossz-címke szerkesztése
@@ -380,6 +429,7 @@ function openLengthEditor(wallId, clientX, clientY) {
   if (!w) return;
 
   ui.selectedWallId = wallId;
+  ui.selectedRoomId = null;
   renderAll();
 
   const rect = wrap.getBoundingClientRect();
@@ -398,26 +448,114 @@ function openLengthEditor(wallId, clientX, clientY) {
   input.focus();
   input.select();
 
-  let done = false;
   function finish(commit) {
-    if (done) return;
-    done = true;
     const v = parseFloat(input.value);
     if (commit && v > 0) {
       const before = snapshot();
       setWallLength(plan, w, v);
       checkpoint(before);
     }
-    closeEditor();
+    editorEl.remove();
+    editorEl = null;
+    editorFinish = null;
   }
+  editorFinish = finish;
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') finish(true);
     else if (e.key === 'Escape') finish(false);
     e.stopPropagation();
   });
-  input.addEventListener('blur', () => finish(false));
+  input.addEventListener('blur', () => finish(true));
 }
 
-function closeEditor() {
-  if (editorEl) { editorEl.remove(); editorEl = null; }
+// helyiség neve + színe: buborék-szerkesztő a kattintott pont mellett
+function openRoomEditor(roomId, clientX, clientY) {
+  closeEditor();
+  const plan = getPlan();
+  const room = plan.rooms.find(r => r.id === roomId);
+  if (!room) return;
+  const before = snapshot(); // a szerkesztés kezdete előtti állapot — egyetlen visszavonható lépés lesz belőle
+
+  ui.selectedRoomId = roomId;
+  ui.selectedWallId = null;
+  renderAll();
+
+  const rect = wrap.getBoundingClientRect();
+  editorEl = document.createElement('div');
+  editorEl.className = 'room-editor';
+  editorEl.style.left = `${clientX - rect.left}px`;
+  editorEl.style.top = `${clientY - rect.top}px`;
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.value = room.name;
+
+  const colorInput = document.createElement('input');
+  colorInput.type = 'color';
+  colorInput.value = room.color;
+  colorInput.title = 'Szín';
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'icon-btn';
+  delBtn.textContent = '×';
+  delBtn.title = 'Helyiség törlése';
+
+  editorEl.append(nameInput, colorInput, delBtn);
+  wrap.appendChild(editorEl);
+  nameInput.focus();
+  nameInput.select();
+
+  function finish(commit) {
+    if (commit) {
+      const v = nameInput.value.trim();
+      if (v && v !== room.name) renameRoom(plan, roomId, v);
+      if (colorInput.value !== room.color) recolorRoom(plan, roomId, colorInput.value);
+      checkpoint(before);
+    }
+    editorEl.remove();
+    editorEl = null;
+    editorFinish = null;
+  }
+  editorFinish = finish;
+
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+    e.stopPropagation();
+  });
+  // a szín-választóra váltáskor a fókusz a szerkesztőn belül marad — ne zárjuk be
+  nameInput.addEventListener('blur', e => {
+    if (e.relatedTarget && editorEl.contains(e.relatedTarget)) return;
+    finish(true);
+  });
+  colorInput.addEventListener('click', e => e.stopPropagation());
+  delBtn.addEventListener('click', () => {
+    const b = snapshot();
+    deleteRoom(plan, roomId);
+    checkpoint(b);
+    ui.selectedRoomId = null;
+    editorEl.remove();
+    editorEl = null;
+    editorFinish = null;
+  });
+}
+
+function closeEditor(commit = true) {
+  if (editorFinish) {
+    const f = editorFinish;
+    editorFinish = null;
+    f(commit);
+  } else if (editorEl) {
+    editorEl.remove();
+    editorEl = null;
+  }
+}
+
+function refreshFloat(client, html) {
+  if (!client) { floatEl.hidden = true; return; }
+  const rect = wrap.getBoundingClientRect();
+  floatEl.style.left = `${client.x - rect.left + 16}px`;
+  floatEl.style.top = `${client.y - rect.top + 16}px`;
+  floatEl.innerHTML = html;
+  floatEl.hidden = false;
 }

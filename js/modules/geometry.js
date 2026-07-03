@@ -66,11 +66,3 @@ export function snapToGrid(p, step) {
   return { x: Math.round(p.x / step) * step, y: Math.round(p.y / step) * step };
 }
 
-// pont távolsága a-b szakasztól
-export function pointSegDist(p, a, b) {
-  const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
-  if (!l2) return dist(p, a);
-  let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
-  t = Math.max(0, Math.min(1, t));
-  return dist(p, { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
-}

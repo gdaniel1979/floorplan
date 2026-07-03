@@ -11,6 +11,7 @@ export function getPlan() {
   p.nodes ??= [];
   p.walls ??= [];
   p.rooms ??= [];
+  p.rooms = p.rooms.filter(r => r.seed && typeof r.seed.x === 'number'); // korábbi (kézzel rajzolt) helyiség-formátum eldobása
   p.objects ??= [];
   return p;
 }
