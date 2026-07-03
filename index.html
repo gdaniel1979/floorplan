@@ -4,18 +4,58 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Alaprajz szerkesztő</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div id="app">
     <header id="topbar">
       <h1>Alaprajz szerkesztő</h1>
+      <div id="save-menu-wrap">
+        <button id="save-menu-btn" class="btn">Mentés ▾</button>
+        <div id="save-menu" class="menu" hidden>
+          <button id="export-json" class="menu-item">Exportálás (JSON)</button>
+          <button id="import-json" class="menu-item">Importálás…</button>
+          <div class="menu-note">A munka automatikusan mentődik a böngészőbe.</div>
+        </div>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+      </div>
+      <div class="btn-group">
+        <button id="undo-btn" class="icon-btn-lg" title="Visszavonás (Ctrl+Z)" disabled>↶</button>
+        <button id="redo-btn" class="icon-btn-lg" title="Ismétlés (Ctrl+Y)" disabled>↷</button>
+      </div>
       <span id="property-title" class="muted">– nincs ingatlan –</span>
     </header>
     <aside id="sidebar">
+      <div class="prop-tree-wrap">
+        <div class="prop-tree-head">
+          <span>Ingatlan</span>
+          <button id="add-property" title="Új ingatlan">+ Ingatlan</button>
+        </div>
+        <div id="property-list" class="prop-tree"></div>
+      </div>
       <section class="panel">
-        <h2>Ingatlan</h2>
-        <p class="placeholder">Ingatlan és szintek kezelése – a 2. fázisban készül el.</p>
+        <h2>Rajzolás</h2>
+        <div class="tool-row">
+          <button class="tool-btn" data-tool="select" title="Kijelölés / szerkesztés (V)">⭢ Kijelölés</button>
+          <button class="tool-btn" data-tool="wall" title="Fal rajzolása (F)">▬ Fal</button>
+        </div>
+        <div class="tool-row">
+          <button id="ortho-toggle" class="tool-btn" title="Csak derékszögek (90/180/270°) engedélyezése rajzoláskor">⊾ Csak derékszög</button>
+        </div>
+        <div class="control-row">
+          <label for="wall-thickness">Falvastagság</label>
+          <select id="wall-thickness">
+            <option value="30">Főfal – 30 cm</option>
+            <option value="10" selected>Válaszfal – 10 cm</option>
+            <option value="custom">Egyéni…</option>
+          </select>
+        </div>
+        <div class="control-row" id="custom-thickness-row" hidden>
+          <label for="custom-thickness">Egyéni (cm)</label>
+          <input type="number" id="custom-thickness" min="1" max="100" step="1" value="15">
+        </div>
+        <p class="hint" id="tool-hint"></p>
       </section>
       <section class="panel">
         <h2>Rétegek</h2>

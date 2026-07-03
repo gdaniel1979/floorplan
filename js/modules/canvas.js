@@ -1,10 +1,13 @@
-// SVG rajzvászon: rács, pan (húzás), zoom (görgő), koordináta-kijelzés.
+// SVG rajzvászon: rács, pan, zoom (görgő), koordináta-kijelzés.
 // A nézetet a viewBox kezeli; a világkoordináta cm-ben értendő.
+// Az egér-interakciókat (rajzolás, kijelölés, pan indítása) a tools.js vezérli,
+// ide csak a nézet-kezelés tartozik.
 
 import { GRID_MINOR, GRID_MAJOR, ZOOM_MIN, ZOOM_MAX, INITIAL_VIEW_WIDTH, SVG_NS } from './config.js';
 
-let svg, gridRect, minorPath, majorPath, originGroup;
+let svg, gridRect, minorPath, majorPath, originGroup, contentGroup, overlayGroup;
 let coordsEl, zoomEl;
+const viewListeners = [];
 
 // viewBox: {x, y, w, h} világ-cm-ben
 const vb = { x: 0, y: 0, w: INITIAL_VIEW_WIDTH, h: INITIAL_VIEW_WIDTH * 0.6 };
@@ -17,6 +20,11 @@ export function initCanvas() {
   buildGrid();
   buildOrigin();
 
+  contentGroup = el('g', { id: 'content' });
+  overlayGroup = el('g', { id: 'overlay' });
+  svg.appendChild(contentGroup);
+  svg.appendChild(overlayGroup);
+
   // induló nézet: origó a bal felső harmadban
   vb.x = -200;
   vb.y = -150;
@@ -24,14 +32,47 @@ export function initCanvas() {
   applyViewBox();
 
   svg.addEventListener('wheel', onWheel, { passive: false });
-  svg.addEventListener('mousedown', onPanStart);
   svg.addEventListener('mousemove', onMouseMove);
   window.addEventListener('resize', () => { fitAspect(); applyViewBox(); });
 }
 
+export function getSvg() { return svg; }
+export function getContent() { return contentGroup; }
+export function getOverlay() { return overlayGroup; }
+
 // px/cm arány – a zoom-kijelzés és a vonalvastagság-korrekció alapja
-function scale() {
+export function getScale() {
   return svg.clientWidth / vb.w;
+}
+
+export function onViewChange(fn) { viewListeners.push(fn); }
+
+export function clientToWorld(clientX, clientY) {
+  const rect = svg.getBoundingClientRect();
+  return {
+    x: vb.x + (clientX - rect.left) / rect.width * vb.w,
+    y: vb.y + (clientY - rect.top) / rect.height * vb.h,
+  };
+}
+
+// pan indítása (a tools.js hívja, amikor a helyzet pan-t kíván)
+export function beginPan(e) {
+  svg.classList.add('panning');
+  const start = { x: e.clientX, y: e.clientY, vbx: vb.x, vby: vb.y };
+  const rect = svg.getBoundingClientRect();
+
+  function move(ev) {
+    vb.x = start.vbx - (ev.clientX - start.x) / rect.width * vb.w;
+    vb.y = start.vby - (ev.clientY - start.y) / rect.height * vb.h;
+    applyViewBox();
+  }
+  function up() {
+    svg.classList.remove('panning');
+    window.removeEventListener('mousemove', move);
+    window.removeEventListener('mouseup', up);
+  }
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
 }
 
 function fitAspect() {
@@ -49,12 +90,13 @@ function applyViewBox() {
   gridRect.setAttribute('height', vb.h);
 
   // a rácsvonalak képernyőn kb. 1 px vastagok maradjanak
-  const s = scale();
+  const s = getScale();
   minorPath.setAttribute('stroke-width', Math.min(0.75 / s, GRID_MINOR / 4));
   majorPath.setAttribute('stroke-width', Math.min(1.25 / s, GRID_MAJOR / 40));
   originGroup.setAttribute('stroke-width', 1.5 / s);
 
   zoomEl.textContent = `${Math.round(s * 100)}%`;
+  for (const fn of viewListeners) fn();
 }
 
 function buildGrid() {
@@ -96,18 +138,10 @@ function buildOrigin() {
   svg.appendChild(originGroup);
 }
 
-function clientToWorld(clientX, clientY) {
-  const rect = svg.getBoundingClientRect();
-  return {
-    x: vb.x + (clientX - rect.left) / rect.width * vb.w,
-    y: vb.y + (clientY - rect.top) / rect.height * vb.h,
-  };
-}
-
 function onWheel(e) {
   e.preventDefault();
   const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-  const newScale = scale() * factor;
+  const newScale = getScale() * factor;
   if (newScale < ZOOM_MIN || newScale > ZOOM_MAX) return;
 
   // a kurzor alatti világpont maradjon helyben
@@ -120,33 +154,12 @@ function onWheel(e) {
   applyViewBox();
 }
 
-function onPanStart(e) {
-  if (e.button !== 0 && e.button !== 1) return;
-  e.preventDefault();
-  svg.classList.add('panning');
-  const start = { x: e.clientX, y: e.clientY, vbx: vb.x, vby: vb.y };
-  const rect = svg.getBoundingClientRect();
-
-  function move(ev) {
-    vb.x = start.vbx - (ev.clientX - start.x) / rect.width * vb.w;
-    vb.y = start.vby - (ev.clientY - start.y) / rect.height * vb.h;
-    applyViewBox();
-  }
-  function up() {
-    svg.classList.remove('panning');
-    window.removeEventListener('mousemove', move);
-    window.removeEventListener('mouseup', up);
-  }
-  window.addEventListener('mousemove', move);
-  window.addEventListener('mouseup', up);
-}
-
 function onMouseMove(e) {
   const p = clientToWorld(e.clientX, e.clientY);
   coordsEl.textContent = `x: ${Math.round(p.x)} cm · y: ${Math.round(p.y)} cm`;
 }
 
-function el(name, attrs = {}) {
+export function el(name, attrs = {}) {
   const node = document.createElementNS(SVG_NS, name);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
   return node;
