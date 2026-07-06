@@ -55,6 +55,24 @@ export function clientToWorld(clientX, clientY) {
   };
 }
 
+// a nézetet a megadott világ-koordinátás téglalapra igazítja (nyújtás nélkül,
+// a vászon arányához illesztve), kis ráhagyással minden oldalon
+export function fitToBounds(minX, minY, maxX, maxY) {
+  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
+  const margin = Math.max(w, h) * 0.08 + 40;
+  let bw = w + margin * 2, bh = h + margin * 2;
+
+  const rect = svg.getBoundingClientRect();
+  const aspect = (rect.width && rect.height) ? rect.width / rect.height : 1;
+  if (bw / bh > aspect) bh = bw / aspect; else bw = bh * aspect;
+
+  vb.x = (minX + maxX) / 2 - bw / 2;
+  vb.y = (minY + maxY) / 2 - bh / 2;
+  vb.w = bw;
+  vb.h = bh;
+  applyViewBox();
+}
+
 // pan indítása (a tools.js hívja, amikor a helyzet pan-t kíván)
 export function beginPan(e) {
   svg.classList.add('panning');
@@ -121,6 +139,14 @@ function buildGrid() {
   });
   major.appendChild(majorFill);
   major.appendChild(majorPath);
+
+  // fal-sraffozás: 45°-os átlós vonalkázás, ahogy egy építészeti tervrajzon
+  const hatch = el('pattern', {
+    id: 'wall-hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)',
+  });
+  hatch.appendChild(el('rect', { width: 6, height: 6, fill: '#ffffff' }));
+  hatch.appendChild(el('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: '#1a1a1a', 'stroke-width': 1.3 }));
+  defs.appendChild(hatch);
 
   defs.appendChild(minor);
   defs.appendChild(major);

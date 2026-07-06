@@ -11,7 +11,9 @@ import { snapshot, checkpoint } from './history.js';
 import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom } from './rooms.js';
+import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall } from './objects.js';
 import { showToast } from './toast.js';
+import { repairWallNetwork } from './wallrepair.js';
 
 let svg, wrap, floatEl, editorEl, editorFinish;
 
@@ -21,6 +23,8 @@ let draw = null;
 let drag = null;
 // szintenként megjegyzett utolsó lerakott pont, ha a lánc nem lett lezárva
 const lastNodeByLevel = new Map();
+// szóköz lenyomva tartva: bal gombos húzás mindig a nézetet mozgatja
+let spaceHeld = false;
 
 export function initTools() {
   svg = getSvg();
@@ -39,20 +43,42 @@ export function initTools() {
     if (ui.tool === 'wall') endChain();
   });
   window.addEventListener('keydown', onKey);
+  window.addEventListener('keydown', onSpaceDown);
+  window.addEventListener('keyup', onSpaceUp);
 
   setTool('select');
+}
+
+function onSpaceDown(e) {
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.code === 'Space' && !spaceHeld) {
+    spaceHeld = true;
+    svg.classList.add('space-pan');
+    e.preventDefault(); // ne görgessen az oldal
+  }
+}
+
+function onSpaceUp(e) {
+  if (e.code === 'Space') {
+    spaceHeld = false;
+    svg.classList.remove('space-pan');
+  }
 }
 
 const HINTS = {
   wall: 'Kattints pontról pontra. Hossz: gépeld be cm-ben és Enter. Befejezés: jobb klikk / Esc / dupla katt. V: kijelölés.',
   room: 'Kattints egy falakkal körbezárt terület belsejébe egy helyiség létrehozásához. V: kijelölés.',
-  select: 'Kattints falra vagy helyiségre a kijelöléshez; húzd a fal végpontját, testét, vagy a középső fogantyút (ív). A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség.',
+  door: 'Kattints egy egyenes falra az ajtó elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
+  window: 'Kattints egy egyenes falra az ablak elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
+  select: 'Kattints falra, helyiségre vagy nyílászáróra a kijelöléshez; húzd a fogantyúkat. A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
 };
 
 export function setTool(tool) {
   ui.tool = tool;
   ui.selectedWallId = null;
   ui.selectedRoomId = null;
+  ui.selectedObjectId = null;
   endChain();
   if (tool === 'wall') tryResumeChain();
   svg.dataset.tool = tool;
@@ -81,6 +107,9 @@ function onDown(e) {
   closeEditor();
   if (e.button === 1) { e.preventDefault(); beginPan(e); return; }
   if (e.button !== 0) return;
+  // szóköz lenyomva tartva: bal gombos húzás mindig a nézetet mozgatja,
+  // függetlenül attól, mi van a kurzor alatt (fal, helyiség, üres terület)
+  if (spaceHeld) { e.preventDefault(); beginPan(e); return; }
 
   const p = clientToWorld(e.clientX, e.clientY);
   const plan = getPlan();
@@ -96,12 +125,22 @@ function onDown(e) {
     return;
   }
 
+  if (ui.tool === 'door' || ui.tool === 'window') {
+    placeObject(plan, ui.tool, e.target, p);
+    return;
+  }
+
   // --- kijelölés mód ---
   const t = e.target;
   e.preventDefault(); // ne vigye el a fókuszt (pl. a hossz-szerkesztő inputról)
 
   if (t.dataset?.handle) {
-    startHandleDrag(plan, t.dataset.handle, t.dataset.wall, p);
+    const kind = t.dataset.handle;
+    if (kind === 'objP1' || kind === 'objP2' || kind === 'objCenter') {
+      startObjectHandleDrag(plan, kind, t.dataset.object);
+    } else {
+      startHandleDrag(plan, kind, t.dataset.wall, p);
+    }
     return;
   }
 
@@ -115,9 +154,19 @@ function onDown(e) {
     return;
   }
 
+  if (t.dataset?.object) {
+    ui.selectedObjectId = t.dataset.object;
+    ui.selectedWallId = null;
+    ui.selectedRoomId = null;
+    renderAll();
+    startObjectHandleDrag(plan, 'objCenter', t.dataset.object);
+    return;
+  }
+
   if (t.dataset?.wall) {
     ui.selectedWallId = t.dataset.wall;
     ui.selectedRoomId = null;
+    ui.selectedObjectId = null;
     renderAll();
     startBodyDrag(plan, t.dataset.wall, p);
     return;
@@ -126,17 +175,36 @@ function onDown(e) {
   if (t.dataset?.room) {
     ui.selectedRoomId = t.dataset.room;
     ui.selectedWallId = null;
+    ui.selectedObjectId = null;
     renderAll();
     return;
   }
 
   // üres területre kattintás: kijelölés törlése + pan
-  if (ui.selectedWallId || ui.selectedRoomId) {
+  if (ui.selectedWallId || ui.selectedRoomId || ui.selectedObjectId) {
     ui.selectedWallId = null;
     ui.selectedRoomId = null;
+    ui.selectedObjectId = null;
     renderAll();
   }
   beginPan(e);
+}
+
+function placeObject(plan, kind, target, p) {
+  const wallId = target?.dataset?.wall;
+  if (!wallId) { showToast('Kattints egy falra a nyílászáró elhelyezéséhez.'); return; }
+  const w = wallById(plan, wallId);
+  if (!w || w.bulge) { showToast('Íves falba egyelőre nem helyezhető el nyílászáró.'); return; }
+
+  const before = snapshot();
+  const defaults = kind === 'door'
+    ? { flipHinge: ui.doorFlipHinge, flipSide: ui.doorFlipSide, withLeaf: ui.doorWithLeaf }
+    : { sashCount: ui.windowSashCount, flipSide: ui.windowFlipSide };
+  const obj = addObject(plan, wallId, kind, offsetOnWall(plan, w, p), defaults);
+  if (!obj) { showToast('Nem sikerült elhelyezni a nyílászárót.'); return; }
+  checkpoint(before);
+  ui.selectedObjectId = obj.id;
+  renderAll();
 }
 
 function placeRoom(plan, p, clientX, clientY) {
@@ -179,10 +247,14 @@ function onKey(e) {
     }
   }
 
-  if (e.key === 'Escape' && (ui.tool === 'wall' || ui.tool === 'room')) { setTool('select'); return; }
-  if (e.key === 'Escape' && (ui.selectedWallId || ui.selectedRoomId)) {
+  if (e.key === 'Escape' && (ui.tool === 'wall' || ui.tool === 'room' || ui.tool === 'door' || ui.tool === 'window')) {
+    setTool('select');
+    return;
+  }
+  if (e.key === 'Escape' && (ui.selectedWallId || ui.selectedRoomId || ui.selectedObjectId)) {
     ui.selectedWallId = null;
     ui.selectedRoomId = null;
+    ui.selectedObjectId = null;
     renderAll();
     return;
   }
@@ -198,6 +270,13 @@ function onKey(e) {
     deleteRoom(getPlan(), ui.selectedRoomId);
     checkpoint(before);
     ui.selectedRoomId = null;
+    return;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedObjectId) {
+    const before = snapshot();
+    deleteObject(getPlan(), ui.selectedObjectId);
+    checkpoint(before);
+    ui.selectedObjectId = null;
     return;
   }
   if (e.key === 'v' || e.key === 'V') setTool('select');
@@ -260,6 +339,8 @@ function commitSegment(plan, end) {
   const before = snapshot();
   const endNode = end.nodeId ? nodeById(plan, end.nodeId) : addNode(plan, end.point);
   addWall(plan, draw.lastNodeId, endNode.id, ui.thickness); // notify + render
+  repairWallNetwork(plan); // T-elágazás: az új fal más fal vonalára eshet, azt szét kell vágni
+  notify();
   checkpoint(before);
   draw.lastNodeId = endNode.id;
   draw.typed = '';
@@ -275,9 +356,10 @@ function commitTyped() {
 }
 
 function wallFloatText(previewLen = null) {
+  const stop = ' <span class="float-hint">· Esc / jobb-katt: fal kész</span>';
   if (draw.typed) return `<b>${draw.typed}</b> cm ⏎`;
-  if (previewLen != null) return `${Math.round(previewLen)} cm`;
-  return 'kattints a következő pontra, vagy gépeld a hosszt';
+  if (previewLen != null) return `${Math.round(previewLen)} cm${stop}`;
+  return `kattints a következő pontra, vagy gépeld a hosszt${stop}`;
 }
 
 function updatePreview(e) {
@@ -351,6 +433,15 @@ function startBodyDrag(plan, wallId, startP) {
   bindDrag(plan);
 }
 
+function startObjectHandleDrag(plan, kind, objectId) {
+  const obj = plan.objects.find(o => o.id === objectId);
+  if (!obj) return;
+  const before = snapshot();
+  ui.dragging = true;
+  drag = { kind, objectId, before };
+  bindDrag(plan);
+}
+
 function bindDrag(plan) {
   function move(ev) {
     const p = clientToWorld(ev.clientX, ev.clientY);
@@ -400,6 +491,14 @@ function applyDrag(plan, p) {
     s = Math.max(-maxS, Math.min(maxS, s));
     drag.w.bulge = chord ? round1(2 * s / chord * 10) / 10 : 0;
     notify();
+  } else if (drag.kind === 'objCenter' || drag.kind === 'objP1' || drag.kind === 'objP2') {
+    const obj = plan.objects.find(o => o.id === drag.objectId);
+    if (!obj) return;
+    const w = wallById(plan, obj.wallId);
+    if (!w) return;
+    const offset = offsetOnWall(plan, w, p);
+    if (drag.kind === 'objCenter') moveObjectAlongWall(plan, obj, offset);
+    else resizeObjectEdge(plan, obj, drag.kind === 'objP1' ? 'p1' : 'p2', offset);
   }
 }
 
@@ -414,7 +513,11 @@ function finishDrag(plan, p) {
       notify();
     }
   }
-  if (drag) checkpoint(drag.before);
+  if (drag) {
+    repairWallNetwork(plan); // a húzott csomópont/fal más fal vonalára kerülhetett
+    notify();
+    checkpoint(drag.before);
+  }
   drag = null;
   ui.dragging = false;
   renderAll(); // a húzás alatt gyorsítótárazott helyiség-nyomvonalak most frissülnek pontosra
@@ -430,6 +533,7 @@ function openLengthEditor(wallId, clientX, clientY) {
 
   ui.selectedWallId = wallId;
   ui.selectedRoomId = null;
+  ui.selectedObjectId = null;
   renderAll();
 
   const rect = wrap.getBoundingClientRect();
@@ -478,6 +582,7 @@ function openRoomEditor(roomId, clientX, clientY) {
 
   ui.selectedRoomId = roomId;
   ui.selectedWallId = null;
+  ui.selectedObjectId = null;
   renderAll();
 
   const rect = wrap.getBoundingClientRect();

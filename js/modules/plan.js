@@ -39,6 +39,7 @@ export function addWall(plan, aId, bId, thickness, bulge = 0) {
 
 export function deleteWall(plan, id) {
   plan.walls = plan.walls.filter(w => w.id !== id);
+  plan.objects = plan.objects.filter(o => o.wallId !== id); // a falba ágyazott nyílászárók is törlődnek
   cleanupOrphanNodes(plan);
   notify();
 }
@@ -90,3 +91,63 @@ export function nodeDegrees(plan) {
 }
 
 export function round1(v) { return Math.round(v * 10) / 10; }
+
+// az adott fal `nodeId` végén lévő "átmenő" párja: egy másik, pontosan
+// ellentétes irányú, azonos vastagságú fal — vagyis vizuálisan egyenesen
+// folytatódik ugyanabban a falban (T-elágazás-szétvágás miatt két külön
+// fal-objektum reprezentál egy folytonos falat). null, ha a csomópont
+// valódi sarok, vég, vagy nem passzoló vastagságú elágazás. Íves falra
+// sosem illeszkedik (a húr-irány csak közelítő lenne).
+export function throughPartner(plan, nodeId, wallId) {
+  const n = nodeById(plan, nodeId);
+  const w = wallById(plan, wallId);
+  if (!n || !w || w.bulge) return null;
+  const dir = G.unit(n, nodeById(plan, w.a === nodeId ? w.b : w.a));
+  for (const c of plan.walls) {
+    if (c.id === wallId || c.bulge || c.thickness !== w.thickness) continue;
+    if (c.a !== nodeId && c.b !== nodeId) continue;
+    const cDir = G.unit(n, nodeById(plan, c.a === nodeId ? c.b : c.a));
+    if (dir.x * cDir.x + dir.y * cDir.y < -0.999) return c;
+  }
+  return null;
+}
+
+// egy csomópontban a falak sarok-kitöltő foltjának oldalhossza (a render.js és
+// a raster.js is ezt használja), vagy null, ha nincs rá szükség. Két,
+// pontosan ellentétes irányú, azonos vastagságú fal ("átmenő" pár, pl. egy
+// T-elágazásnál kettévágott fal) rés nélkül illeszkedik önmagában — csak a
+// valódi sarkoknál (két, egymással szöget bezáró fal vége) kell folt, egy
+// átmenő falra merőlegesen csatlakozó ág esetén a téglalapok már fedés
+// nélkül összeérnek, függetlenül a vastagságuk különbségétől
+export function nodeCornerPatchThickness(plan, nodeId) {
+  const n = nodeById(plan, nodeId);
+  const walls = plan.walls.filter(w => w.a === nodeId || w.b === nodeId);
+  if (!n || walls.length < 2) return null;
+
+  const items = walls.map(w => {
+    const other = nodeById(plan, w.a === nodeId ? w.b : w.a);
+    return { dir: G.unit(n, other), thickness: w.thickness };
+  });
+
+  const used = new Array(items.length).fill(false);
+  const throughDirs = [];
+  for (let i = 0; i < items.length; i++) {
+    if (used[i]) continue;
+    for (let j = i + 1; j < items.length; j++) {
+      if (used[j]) continue;
+      const dot = items[i].dir.x * items[j].dir.x + items[i].dir.y * items[j].dir.y;
+      if (dot < -0.999 && items[i].thickness === items[j].thickness) {
+        used[i] = used[j] = true;
+        throughDirs.push(items[i].dir);
+        break;
+      }
+    }
+  }
+
+  const branches = items.filter((_, i) => !used[i]);
+  if (!branches.length) return null; // tiszta kereszteződés, nincs rés
+  if (throughDirs.length && branches.every(b => throughDirs.some(t => Math.abs(t.x * b.dir.x + t.y * b.dir.y) < 0.01))) {
+    return null; // T-elágazás(ok), mindegyik ág merőleges egy átmenő falra
+  }
+  return Math.max(...walls.map(w => w.thickness));
+}

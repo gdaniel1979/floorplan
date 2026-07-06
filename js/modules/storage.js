@@ -4,6 +4,7 @@
 
 import { getState, setState, initialState, onChange, activeProperty, normalizeActive, notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
+import { repairAllPlans, repairPropertyPlans } from './wallrepair.js';
 
 const KEY = 'floorplan.v1';
 
@@ -12,7 +13,7 @@ export function load() {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const data = JSON.parse(raw);
-      if (isFullState(data)) { setState(data); return; }
+      if (isFullState(data)) { repairAllPlans(data); setState(data); return; }
     }
   } catch (e) {
     console.warn('A mentett adat nem olvasható, új állapot indul.', e);
@@ -85,6 +86,7 @@ export function importJson(file) {
     const state = getState();
     let lastImported = null;
     for (const p of incoming) {
+      repairPropertyPlans(p);
       const i = state.properties.findIndex(q => q.id === p.id);
       if (i >= 0) {
         if (!confirm(`A(z) „${state.properties[i].name}” ingatlan már létezik. Felülírjam a fájlban lévővel („${p.name}”)? A Mégse kihagyja.`)) continue;

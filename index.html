@@ -23,6 +23,7 @@
       <div class="btn-group">
         <button id="undo-btn" class="icon-btn-lg" title="Visszavonás (Ctrl+Z)" disabled>↶</button>
         <button id="redo-btn" class="icon-btn-lg" title="Ismétlés (Ctrl+Y)" disabled>↷</button>
+        <button id="fit-view-btn" class="icon-btn-lg" title="Rajz igazítása a vászonhoz">⛶</button>
       </div>
       <span id="property-title" class="muted">– nincs ingatlan –</span>
     </header>
@@ -57,6 +58,42 @@
           <input type="number" id="custom-thickness" min="1" max="100" step="1" value="15">
         </div>
         <p class="hint" id="tool-hint"></p>
+      </section>
+      <section class="panel">
+        <h2>Nyílászárók</h2>
+        <div class="tool-row">
+          <button class="tool-btn" data-tool="door" title="Ajtó elhelyezése falba">⏦ Ajtó</button>
+          <button class="tool-btn" data-tool="window" title="Ablak elhelyezése falba">▭ Ablak</button>
+        </div>
+
+        <div id="door-options" hidden>
+          <div class="control-row">
+            <label for="door-with-leaf">Ajtó típusa</label>
+            <select id="door-with-leaf">
+              <option value="leaf" selected>Ajtólappal</option>
+              <option value="opening">Csak nyílás</option>
+            </select>
+          </div>
+          <div class="tool-row">
+            <button id="door-flip-hinge" class="tool-btn" title="A zsanér a fal másik végére kerüljön">⇋ Zsanér oldala</button>
+            <button id="door-flip-side" class="tool-btn" title="A nyitás iránya a fal másik oldalára forduljon">⇅ Nyitás iránya</button>
+          </div>
+          <p class="hint">A fenti gombok az új ajtókra és a kijelölt ajtóra is vonatkoznak.</p>
+        </div>
+
+        <div id="window-options" hidden>
+          <div class="control-row">
+            <label for="window-sash-count">Ablak típusa</label>
+            <select id="window-sash-count">
+              <option value="1" selected>1 szárnyú</option>
+              <option value="2">2 szárnyú</option>
+            </select>
+          </div>
+          <div class="tool-row">
+            <button id="window-flip-side" class="tool-btn" title="A nyitás iránya a fal másik oldalára forduljon">⇅ Nyitás iránya</button>
+          </div>
+          <p class="hint">A fenti gombok az új ablakokra és a kijelölt ablakra is vonatkoznak.</p>
+        </div>
       </section>
       <section class="panel">
         <h2>Rétegek</h2>
