@@ -46,7 +46,7 @@
           <button id="ortho-toggle" class="tool-btn" title="Csak derékszögek (90/180/270°) engedélyezése rajzoláskor">⊾ Csak derékszög</button>
         </div>
         <div class="control-row">
-          <label for="wall-thickness">Falvastagság</label>
+          <label for="wall-thickness">Új fal vastagsága</label>
           <select id="wall-thickness">
             <option value="30">Főfal – 30 cm</option>
             <option value="10" selected>Válaszfal – 10 cm</option>
@@ -58,6 +58,25 @@
           <input type="number" id="custom-thickness" min="1" max="100" step="1" value="15">
         </div>
         <p class="hint" id="tool-hint"></p>
+      </section>
+      <section class="panel" id="wall-options" hidden>
+        <h2>Kijelölt fal</h2>
+        <div class="control-row">
+          <label for="wall-sel-length">Hossz (cm)</label>
+          <input type="number" id="wall-sel-length" min="1" step="1">
+        </div>
+        <div class="control-row">
+          <label for="wall-sel-thickness">Vastagság</label>
+          <select id="wall-sel-thickness">
+            <option value="30">Főfal – 30 cm</option>
+            <option value="10">Válaszfal – 10 cm</option>
+            <option value="custom">Egyéni…</option>
+          </select>
+        </div>
+        <div class="control-row" id="wall-sel-custom-row" hidden>
+          <label for="wall-sel-custom-thickness">Egyéni (cm)</label>
+          <input type="number" id="wall-sel-custom-thickness" min="1" max="100" step="1">
+        </div>
       </section>
       <section class="panel">
         <h2>Nyílászárók</h2>

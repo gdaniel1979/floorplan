@@ -2,7 +2,7 @@
 
 import { ui } from './uistate.js';
 import { setTool } from './tools.js';
-import { getPlan, wallById } from './plan.js';
+import { getPlan, wallById, setWallLength } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
 
@@ -32,15 +32,6 @@ export function initToolbar() {
   function apply() {
     customRow.hidden = select.value !== 'custom';
     ui.thickness = currentThickness();
-    // ha épp ki van jelölve egy fal, annak a vastagságát is átállítja
-    const plan = getPlan();
-    const w = plan && wallById(plan, ui.selectedWallId);
-    if (w && w.thickness !== ui.thickness) {
-      const before = snapshot();
-      w.thickness = ui.thickness;
-      notify();
-      checkpoint(before);
-    }
   }
 
   select.addEventListener('change', apply);
@@ -49,6 +40,46 @@ export function initToolbar() {
 
   initDoorControls();
   initWindowControls();
+  initWallOptionsControls();
+}
+
+// a kijelölt fal saját hossz-/vastagság-szerkesztője (render.js szinkronizálja
+// a mezők ÉRTÉKÉT a kijelölés váltásakor/húzás közben — updateWallOptionsPanel)
+function initWallOptionsControls() {
+  const lengthInput = document.getElementById('wall-sel-length');
+  const thickSelect = document.getElementById('wall-sel-thickness');
+  const customRow = document.getElementById('wall-sel-custom-row');
+  const customInput = document.getElementById('wall-sel-custom-thickness');
+
+  function selectedWall() {
+    const plan = getPlan();
+    return plan && wallById(plan, ui.selectedWallId);
+  }
+
+  lengthInput.addEventListener('change', () => {
+    const w = selectedWall();
+    const v = parseFloat(lengthInput.value);
+    if (!w || !(v > 0)) return;
+    const plan = getPlan();
+    const before = snapshot();
+    setWallLength(plan, w, v);
+    checkpoint(before);
+  });
+
+  function applyThickness() {
+    const w = selectedWall();
+    if (!w) return;
+    customRow.hidden = thickSelect.value !== 'custom';
+    const v = thickSelect.value === 'custom' ? parseFloat(customInput.value) : parseFloat(thickSelect.value);
+    if (!(v > 0) || w.thickness === v) return;
+    const before = snapshot();
+    w.thickness = v;
+    notify();
+    checkpoint(before);
+  }
+
+  thickSelect.addEventListener('change', applyThickness);
+  customInput.addEventListener('change', applyThickness);
 }
 
 // a kijelölt objektumra alkalmazza a módosítást, ha az a megadott fajtájú, history-checkponttal

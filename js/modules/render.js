@@ -4,7 +4,7 @@
 // újrarajzolás.
 
 import { el, getContent, getOverlay, getScale } from './canvas.js';
-import { getPlan, nodeById, wallLengthOf, throughPartner } from './plan.js';
+import { getPlan, nodeById, wallById, wallLengthOf, throughPartner } from './plan.js';
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
@@ -126,6 +126,7 @@ export function renderAll() {
   }
 
   updateDoorWindowPanel(plan);
+  updateWallOptionsPanel(plan);
 }
 
 // az ajtó-/ablak-opciók az oldalsávban csak akkor látszanak, ha az adott
@@ -136,6 +137,31 @@ function updateDoorWindowPanel(plan) {
   const windowOptions = document.getElementById('window-options');
   if (doorOptions) doorOptions.hidden = !(ui.tool === 'door' || sel?.kind === 'door');
   if (windowOptions) windowOptions.hidden = !(ui.tool === 'window' || sel?.kind === 'window');
+}
+
+// a kijelölt fal panelje (hossz + vastagság) — csak kijelölt falnál látszik,
+// a mezők mindig a fal AKTUÁLIS értékét mutatják (húzás közben is frissül).
+// A fókuszban lévő mezőt nem írja felül, hogy a gépelés közben ne ugorjon.
+function updateWallOptionsPanel(plan) {
+  const panel = document.getElementById('wall-options');
+  const w = wallById(plan, ui.selectedWallId);
+  if (panel) panel.hidden = !w;
+  if (!w) return;
+
+  const lengthInput = document.getElementById('wall-sel-length');
+  if (lengthInput && document.activeElement !== lengthInput) {
+    lengthInput.value = Math.round(wallLengthOf(plan, w));
+  }
+
+  const thickSelect = document.getElementById('wall-sel-thickness');
+  const customRow = document.getElementById('wall-sel-custom-row');
+  const customInput = document.getElementById('wall-sel-custom-thickness');
+  if (thickSelect && customInput && document.activeElement !== thickSelect && document.activeElement !== customInput) {
+    const preset = [...thickSelect.options].some(o => o.value !== 'custom' && parseFloat(o.value) === w.thickness);
+    thickSelect.value = preset ? String(w.thickness) : 'custom';
+    customRow.hidden = preset;
+    if (!preset) customInput.value = w.thickness;
+  }
 }
 
 // --- fal-alak: egyetlen kontúrkövetett, sraffozott sokszög ---
