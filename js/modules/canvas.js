@@ -93,6 +93,13 @@ export function beginPan(e) {
   window.addEventListener('mouseup', up);
 }
 
+// a jobb oldali panel átméretezésekor (nem window-resize, azt a saját
+// listener már lekezeli) ezt kell hívni, hogy a vászon ne torzuljon
+export function refreshViewport() {
+  fitAspect();
+  applyViewBox();
+}
+
 function fitAspect() {
   const rect = svg.getBoundingClientRect();
   if (rect.width > 0) vb.h = vb.w * rect.height / rect.width;

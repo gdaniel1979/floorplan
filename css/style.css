@@ -13,6 +13,7 @@
   --canvas-bg: #fafafa;
   --topbar-h: 48px;
   --sidebar-w: 260px;
+  --right-panel-w: 280px;
 }
 
 * { box-sizing: border-box; }
@@ -29,10 +30,10 @@ html, body {
 #app {
   display: grid;
   grid-template-areas:
-    "topbar topbar"
-    "sidebar canvas";
+    "topbar topbar topbar topbar"
+    "sidebar canvas rresizer rpanel";
   grid-template-rows: var(--topbar-h) 1fr;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-columns: var(--sidebar-w) 1fr 5px var(--right-panel-w);
   height: 100vh;
 }
 
@@ -124,6 +125,37 @@ html, body {
   overflow-y: auto;
   padding: 10px;
 }
+
+/* --- Jobb oldali sáv (bútorok/rétegek), a bal sidebarhoz hasonlóan, átméretezhetően --- */
+
+#right-panel {
+  grid-area: rpanel;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 10px;
+  min-width: 0;
+}
+
+#right-resizer {
+  grid-area: rresizer;
+  background: var(--border);
+  cursor: col-resize;
+}
+
+#right-resizer:hover,
+#right-resizer.dragging { background: var(--accent); }
+
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tab-panel[hidden] { display: none; }
 
 /* A panelek kártyaként különülnek el, ahogy a tile projektben */
 .panel {
@@ -520,6 +552,18 @@ input.rename {
   stroke: var(--accent);
   stroke-dasharray: 6 4;
   pointer-events: none;
+}
+
+.furniture-rotate-line {
+  stroke: var(--accent);
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.furniture-rotate-handle {
+  fill: #fff;
+  stroke: var(--accent);
+  cursor: grab;
 }
 
 .handle {

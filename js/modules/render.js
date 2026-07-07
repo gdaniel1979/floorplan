@@ -10,6 +10,7 @@ import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
 import { objectGeometry } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
+import { rotatedPoint, rotateHandlePoint } from './furniture.js';
 
 export function renderAll() {
   const content = getContent();
@@ -93,6 +94,16 @@ export function renderAll() {
         x: item.x - item.w / 2, y: item.y - item.h / 2, width: item.w, height: item.h,
         class: 'furniture-selected', 'stroke-width': 2 / s,
         transform: `rotate(${item.rotation} ${item.x} ${item.y})`,
+      }));
+      const edge = rotatedPoint(item, 0, -item.h / 2);
+      const hp = rotateHandlePoint(item);
+      overlay.appendChild(el('line', {
+        x1: edge.x, y1: edge.y, x2: hp.x, y2: hp.y,
+        class: 'furniture-rotate-line', 'stroke-width': 1 / s,
+      }));
+      overlay.appendChild(el('circle', {
+        cx: hp.x, cy: hp.y, r: 6 / s, class: 'furniture-rotate-handle',
+        'data-furniture': item.id, 'data-handle': 'furnitureRotate', 'stroke-width': 1.5 / s,
       }));
     }
   }

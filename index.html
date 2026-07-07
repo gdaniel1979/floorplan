@@ -114,48 +114,6 @@
           <p class="hint">A fenti gombok az új ablakokra és a kijelölt ablakra is vonatkoznak.</p>
         </div>
       </section>
-      <section class="panel">
-        <h2>Bútorok, szaniter, konyha</h2>
-        <div class="tool-row">
-          <button class="tool-btn" data-furniture-cat="szaniter">Szaniter</button>
-          <button class="tool-btn" data-furniture-cat="konyha">Konyha</button>
-        </div>
-        <div class="tool-row">
-          <button class="tool-btn" data-furniture-cat="butor">Bútor</button>
-          <button class="tool-btn" data-furniture-cat="epulet">Épületelem</button>
-        </div>
-        <div id="furniture-items" class="tool-row wrap"></div>
-        <p class="hint">Válassz kategóriát, majd tárgyat, és kattints a rajzra az elhelyezéshez. V: kijelölés.</p>
-      </section>
-      <section class="panel" id="furniture-options" hidden>
-        <h2>Kijelölt tárgy</h2>
-        <div class="control-row">
-          <label>Típus</label>
-          <span id="furniture-sel-label" class="muted"></span>
-        </div>
-        <div class="control-row">
-          <label for="furniture-sel-width">Szélesség (cm)</label>
-          <input type="number" id="furniture-sel-width" min="1" step="1">
-        </div>
-        <div class="control-row">
-          <label for="furniture-sel-depth">Mélység (cm)</label>
-          <input type="number" id="furniture-sel-depth" min="1" step="1">
-        </div>
-        <div class="control-row">
-          <label for="furniture-sel-rotation">Forgatás (°)</label>
-          <input type="number" id="furniture-sel-rotation" min="0" max="359" step="15">
-        </div>
-      </section>
-      <section class="panel">
-        <h2>Rétegek</h2>
-        <ul class="layer-list">
-          <li class="layer fixed">Falak, ajtók, ablakok <span class="muted">(mindig látható)</span></li>
-          <li class="layer"><label><input type="checkbox" data-layer="szaniter" checked> Szaniter</label></li>
-          <li class="layer"><label><input type="checkbox" data-layer="konyha" checked> Konyha</label></li>
-          <li class="layer"><label><input type="checkbox" data-layer="butor" checked> Bútorok</label></li>
-          <li class="layer"><label><input type="checkbox" data-layer="epulet" checked> Épületelemek</label></li>
-        </ul>
-      </section>
     </aside>
     <main id="canvas-wrap">
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -164,6 +122,62 @@
         <span id="zoom-label">100%</span>
       </div>
     </main>
+    <div id="right-resizer" title="Húzd a sáv átméretezéséhez"></div>
+    <aside id="right-panel">
+      <div class="tool-row" id="right-tabs">
+        <button class="tool-btn active" data-tab="furniture">Bútorok</button>
+        <button class="tool-btn" data-tab="layers">Rétegek</button>
+      </div>
+
+      <div class="tab-panel" data-tabpanel="furniture">
+        <section class="panel">
+          <h2>Bútorok, szaniter, konyha</h2>
+          <div class="tool-row">
+            <button class="tool-btn" data-furniture-cat="szaniter">Szaniter</button>
+            <button class="tool-btn" data-furniture-cat="konyha">Konyha</button>
+          </div>
+          <div class="tool-row">
+            <button class="tool-btn" data-furniture-cat="butor">Bútor</button>
+            <button class="tool-btn" data-furniture-cat="epulet">Épületelem</button>
+          </div>
+          <div id="furniture-items" class="tool-row wrap"></div>
+          <p class="hint">Válassz kategóriát, majd tárgyat, és kattints a rajzra az elhelyezéshez. V: kijelölés.</p>
+        </section>
+        <section class="panel" id="furniture-options" hidden>
+          <h2>Kijelölt tárgy</h2>
+          <div class="control-row">
+            <label>Típus</label>
+            <span id="furniture-sel-label" class="muted"></span>
+          </div>
+          <div class="control-row">
+            <label for="furniture-sel-width">Szélesség (cm)</label>
+            <input type="number" id="furniture-sel-width" min="1" step="1">
+          </div>
+          <div class="control-row">
+            <label for="furniture-sel-depth">Mélység (cm)</label>
+            <input type="number" id="furniture-sel-depth" min="1" step="1">
+          </div>
+          <div class="control-row">
+            <label for="furniture-sel-rotation">Forgatás (°)</label>
+            <input type="number" id="furniture-sel-rotation" min="0" max="359" step="1">
+          </div>
+          <p class="hint">A rajzon a forgató fogantyú fal-irányhoz és 15°-os léptékhez is illeszkedik (Shift: illesztés nélkül).</p>
+        </section>
+      </div>
+
+      <div class="tab-panel" data-tabpanel="layers" hidden>
+        <section class="panel">
+          <h2>Rétegek</h2>
+          <ul class="layer-list">
+            <li class="layer fixed">Falak, ajtók, ablakok <span class="muted">(mindig látható)</span></li>
+            <li class="layer"><label><input type="checkbox" data-layer="szaniter" checked> Szaniter</label></li>
+            <li class="layer"><label><input type="checkbox" data-layer="konyha" checked> Konyha</label></li>
+            <li class="layer"><label><input type="checkbox" data-layer="butor" checked> Bútorok</label></li>
+            <li class="layer"><label><input type="checkbox" data-layer="epulet" checked> Épületelemek</label></li>
+          </ul>
+        </section>
+      </div>
+    </aside>
   </div>
   <script type="module" src="js/app.js"></script>
 </body>

@@ -12,7 +12,7 @@ import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom } from './rooms.js';
 import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall } from './objects.js';
-import { addFurniture, deleteFurniture, moveFurniture } from './furniture.js';
+import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint } from './furniture.js';
 import { showToast } from './toast.js';
 import { repairWallNetwork } from './wallrepair.js';
 
@@ -150,6 +150,8 @@ function onDown(e) {
     const kind = t.dataset.handle;
     if (kind === 'objP1' || kind === 'objP2' || kind === 'objCenter') {
       startObjectHandleDrag(plan, kind, t.dataset.object);
+    } else if (kind === 'furnitureRotate') {
+      startFurnitureRotateDrag(plan, t.dataset.furniture);
     } else {
       startHandleDrag(plan, kind, t.dataset.wall, p);
     }
@@ -498,10 +500,19 @@ function startFurnitureDrag(plan, furnitureId, startP) {
   bindDrag(plan);
 }
 
+function startFurnitureRotateDrag(plan, furnitureId) {
+  const item = plan.furniture.find(f => f.id === furnitureId);
+  if (!item) return;
+  const before = snapshot();
+  ui.dragging = true;
+  drag = { kind: 'furnitureRotate', item, before };
+  bindDrag(plan);
+}
+
 function bindDrag(plan) {
   function move(ev) {
     const p = clientToWorld(ev.clientX, ev.clientY);
-    applyDrag(plan, p);
+    applyDrag(plan, p, ev.shiftKey);
   }
   function up(ev) {
     const p = clientToWorld(ev.clientX, ev.clientY);
@@ -513,7 +524,7 @@ function bindDrag(plan) {
   window.addEventListener('mouseup', up);
 }
 
-function applyDrag(plan, p) {
+function applyDrag(plan, p, shiftKey) {
   const tol = 12 / getScale();
 
   if (drag.kind === 'node') {
@@ -559,6 +570,19 @@ function applyDrag(plan, p) {
     const dx = Math.round((p.x - drag.start.x) / GRID_MINOR) * GRID_MINOR;
     const dy = Math.round((p.y - drag.start.y) / GRID_MINOR) * GRID_MINOR;
     moveFurniture(plan, drag.item, drag.orig.x + dx, drag.orig.y + dy);
+  } else if (drag.kind === 'furnitureRotate') {
+    const item = drag.item;
+    const raw = Math.atan2(p.y - item.y, p.x - item.x) * 180 / Math.PI + 90;
+    const info = snappedRotationInfo(plan, item, raw, !shiftKey);
+    item.rotation = info.deg;
+    notify();
+    if (info.snapped) {
+      const s = getScale();
+      const hp = rotateHandlePoint(item);
+      getOverlay().appendChild(el('circle', {
+        cx: hp.x, cy: hp.y, r: 10 / s, class: 'snap-hint', 'stroke-width': 2 / s,
+      }));
+    }
   }
 }
 
