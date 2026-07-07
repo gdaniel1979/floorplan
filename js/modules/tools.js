@@ -12,6 +12,7 @@ import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom } from './rooms.js';
 import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall } from './objects.js';
+import { addFurniture, deleteFurniture, moveFurniture } from './furniture.js';
 import { showToast } from './toast.js';
 import { repairWallNetwork } from './wallrepair.js';
 
@@ -71,7 +72,8 @@ const HINTS = {
   room: 'Kattints egy falakkal körbezárt terület belsejébe egy helyiség létrehozásához. V: kijelölés.',
   door: 'Kattints egy egyenes falra az ajtó elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
   window: 'Kattints egy egyenes falra az ablak elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
-  select: 'Kattints falra, helyiségre vagy nyílászáróra a kijelöléshez; húzd a fogantyúkat. A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
+  furniture: 'Kattints a rajzra a kiválasztott tárgy elhelyezéséhez. Utólag húzható; méret/forgatás a Kijelölt tárgy panelen. V: kijelölés.',
+  select: 'Kattints falra, helyiségre, nyílászáróra vagy bútorra a kijelöléshez; húzd a fogantyúkat. A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
 };
 
 export function setTool(tool) {
@@ -79,11 +81,16 @@ export function setTool(tool) {
   ui.selectedWallId = null;
   ui.selectedRoomId = null;
   ui.selectedObjectId = null;
+  ui.selectedFurnitureId = null;
+  if (tool !== 'furniture') ui.furniturePendingType = null;
   endChain();
   if (tool === 'wall') tryResumeChain();
   svg.dataset.tool = tool;
   for (const b of document.querySelectorAll('.tool-btn[data-tool]')) {
     b.classList.toggle('active', b.dataset.tool === tool);
+  }
+  if (tool !== 'furniture') {
+    for (const b of document.querySelectorAll('#furniture-items .tool-btn')) b.classList.remove('active');
   }
   const hint = document.getElementById('tool-hint');
   if (hint) hint.textContent = HINTS[tool] || '';
@@ -130,6 +137,11 @@ function onDown(e) {
     return;
   }
 
+  if (ui.tool === 'furniture') {
+    placeFurniture(plan, p);
+    return;
+  }
+
   // --- kijelölés mód ---
   const t = e.target;
   e.preventDefault(); // ne vigye el a fókuszt (pl. a hossz-szerkesztő inputról)
@@ -154,10 +166,21 @@ function onDown(e) {
     return;
   }
 
+  if (t.dataset?.furniture) {
+    ui.selectedFurnitureId = t.dataset.furniture;
+    ui.selectedWallId = null;
+    ui.selectedRoomId = null;
+    ui.selectedObjectId = null;
+    renderAll();
+    startFurnitureDrag(plan, t.dataset.furniture, p);
+    return;
+  }
+
   if (t.dataset?.object) {
     ui.selectedObjectId = t.dataset.object;
     ui.selectedWallId = null;
     ui.selectedRoomId = null;
+    ui.selectedFurnitureId = null;
     renderAll();
     startObjectHandleDrag(plan, 'objCenter', t.dataset.object);
     return;
@@ -167,6 +190,7 @@ function onDown(e) {
     ui.selectedWallId = t.dataset.wall;
     ui.selectedRoomId = null;
     ui.selectedObjectId = null;
+    ui.selectedFurnitureId = null;
     renderAll();
     startBodyDrag(plan, t.dataset.wall, p);
     return;
@@ -176,18 +200,33 @@ function onDown(e) {
     ui.selectedRoomId = t.dataset.room;
     ui.selectedWallId = null;
     ui.selectedObjectId = null;
+    ui.selectedFurnitureId = null;
     renderAll();
     return;
   }
 
   // üres területre kattintás: kijelölés törlése + pan
-  if (ui.selectedWallId || ui.selectedRoomId || ui.selectedObjectId) {
+  if (ui.selectedWallId || ui.selectedRoomId || ui.selectedObjectId || ui.selectedFurnitureId) {
     ui.selectedWallId = null;
     ui.selectedRoomId = null;
     ui.selectedObjectId = null;
+    ui.selectedFurnitureId = null;
     renderAll();
   }
   beginPan(e);
+}
+
+function placeFurniture(plan, p) {
+  if (!ui.furnitureCategory || !ui.furniturePendingType) {
+    showToast('Válassz egy tárgyat a Bútorok panelen.');
+    return;
+  }
+  const before = snapshot();
+  const item = addFurniture(plan, ui.furnitureCategory, ui.furniturePendingType, p);
+  if (!item) { showToast('Nem sikerült elhelyezni a tárgyat.'); return; }
+  checkpoint(before);
+  ui.selectedFurnitureId = item.id;
+  renderAll();
 }
 
 function placeObject(plan, kind, target, p) {
@@ -247,14 +286,15 @@ function onKey(e) {
     }
   }
 
-  if (e.key === 'Escape' && (ui.tool === 'wall' || ui.tool === 'room' || ui.tool === 'door' || ui.tool === 'window')) {
+  if (e.key === 'Escape' && (ui.tool === 'wall' || ui.tool === 'room' || ui.tool === 'door' || ui.tool === 'window' || ui.tool === 'furniture')) {
     setTool('select');
     return;
   }
-  if (e.key === 'Escape' && (ui.selectedWallId || ui.selectedRoomId || ui.selectedObjectId)) {
+  if (e.key === 'Escape' && (ui.selectedWallId || ui.selectedRoomId || ui.selectedObjectId || ui.selectedFurnitureId)) {
     ui.selectedWallId = null;
     ui.selectedRoomId = null;
     ui.selectedObjectId = null;
+    ui.selectedFurnitureId = null;
     renderAll();
     return;
   }
@@ -277,6 +317,13 @@ function onKey(e) {
     deleteObject(getPlan(), ui.selectedObjectId);
     checkpoint(before);
     ui.selectedObjectId = null;
+    return;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selectedFurnitureId) {
+    const before = snapshot();
+    deleteFurniture(getPlan(), ui.selectedFurnitureId);
+    checkpoint(before);
+    ui.selectedFurnitureId = null;
     return;
   }
   if (e.key === 'v' || e.key === 'V') setTool('select');
@@ -442,6 +489,15 @@ function startObjectHandleDrag(plan, kind, objectId) {
   bindDrag(plan);
 }
 
+function startFurnitureDrag(plan, furnitureId, startP) {
+  const item = plan.furniture.find(f => f.id === furnitureId);
+  if (!item) return;
+  const before = snapshot();
+  ui.dragging = true;
+  drag = { kind: 'furniture', item, orig: { x: item.x, y: item.y }, start: startP, before };
+  bindDrag(plan);
+}
+
 function bindDrag(plan) {
   function move(ev) {
     const p = clientToWorld(ev.clientX, ev.clientY);
@@ -499,6 +555,10 @@ function applyDrag(plan, p) {
     const offset = offsetOnWall(plan, w, p);
     if (drag.kind === 'objCenter') moveObjectAlongWall(plan, obj, offset);
     else resizeObjectEdge(plan, obj, drag.kind === 'objP1' ? 'p1' : 'p2', offset);
+  } else if (drag.kind === 'furniture') {
+    const dx = Math.round((p.x - drag.start.x) / GRID_MINOR) * GRID_MINOR;
+    const dy = Math.round((p.y - drag.start.y) / GRID_MINOR) * GRID_MINOR;
+    moveFurniture(plan, drag.item, drag.orig.x + dx, drag.orig.y + dy);
   }
 }
 

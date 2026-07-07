@@ -22,7 +22,7 @@ export function newId() {
 }
 
 export function emptyPlan() {
-  return { nodes: [], walls: [], objects: [], rooms: [] };
+  return { nodes: [], walls: [], objects: [], rooms: [], furniture: [] };
 }
 
 export function newLevel(name) {

@@ -5,6 +5,7 @@ import { setTool } from './tools.js';
 import { getPlan, wallById, setWallLength } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
+import { CATALOG, setFurnitureSize, setFurnitureRotation } from './furniture.js';
 
 export function initToolbar() {
   for (const b of document.querySelectorAll('.tool-btn[data-tool]')) {
@@ -41,6 +42,7 @@ export function initToolbar() {
   initDoorControls();
   initWindowControls();
   initWallOptionsControls();
+  initFurnitureControls();
 }
 
 // a kijelölt fal saját hossz-/vastagság-szerkesztője (render.js szinkronizálja
@@ -143,4 +145,81 @@ function initWindowControls() {
     flipSideBtn.classList.toggle('active', ui.windowFlipSide);
     applyToSelectedObject('window', o => { o.flipSide = ui.windowFlipSide; });
   });
+}
+
+// bútor-paletta: kategória-választás → tárgy-választás → elhelyezési mód,
+// plusz a kijelölt tárgy méret/forgatás mezői (render.js szinkronizálja az
+// értéküket a kijelölés váltásakor/húzás közben — updateFurnitureOptionsPanel)
+function initFurnitureControls() {
+  const itemsRow = document.getElementById('furniture-items');
+
+  function renderItemButtons(category) {
+    itemsRow.innerHTML = '';
+    for (const def of CATALOG[category] || []) {
+      const b = document.createElement('button');
+      b.className = 'tool-btn';
+      b.textContent = def.label;
+      b.title = `${def.w}×${def.h} cm`;
+      b.addEventListener('click', () => {
+        ui.furnitureCategory = category;
+        ui.furniturePendingType = def.type;
+        setTool('furniture');
+        for (const bb of itemsRow.querySelectorAll('.tool-btn')) bb.classList.toggle('active', bb === b);
+      });
+      itemsRow.appendChild(b);
+    }
+  }
+
+  for (const catBtn of document.querySelectorAll('.tool-btn[data-furniture-cat]')) {
+    catBtn.addEventListener('click', () => {
+      for (const b of document.querySelectorAll('.tool-btn[data-furniture-cat]')) {
+        b.classList.toggle('active', b === catBtn);
+      }
+      renderItemButtons(catBtn.dataset.furnitureCat);
+    });
+  }
+
+  function selectedFurniture() {
+    const plan = getPlan();
+    return plan && plan.furniture.find(f => f.id === ui.selectedFurnitureId);
+  }
+
+  const widthInput = document.getElementById('furniture-sel-width');
+  const depthInput = document.getElementById('furniture-sel-depth');
+  const rotInput = document.getElementById('furniture-sel-rotation');
+
+  widthInput.addEventListener('change', () => {
+    const item = selectedFurniture();
+    const v = parseFloat(widthInput.value);
+    if (!item || !(v > 0)) return;
+    const before = snapshot();
+    setFurnitureSize(getPlan(), item, v, null);
+    checkpoint(before);
+  });
+
+  depthInput.addEventListener('change', () => {
+    const item = selectedFurniture();
+    const v = parseFloat(depthInput.value);
+    if (!item || !(v > 0)) return;
+    const before = snapshot();
+    setFurnitureSize(getPlan(), item, null, v);
+    checkpoint(before);
+  });
+
+  rotInput.addEventListener('change', () => {
+    const item = selectedFurniture();
+    const v = parseFloat(rotInput.value);
+    if (!item || Number.isNaN(v)) return;
+    const before = snapshot();
+    setFurnitureRotation(getPlan(), item, v);
+    checkpoint(before);
+  });
+
+  // Rétegek: az egyes bútor-kategóriák ki-/bekapcsolása (a falak/nyílászárók mindig látszanak)
+  for (const cb of document.querySelectorAll('input[data-layer]')) {
+    cb.addEventListener('change', () => {
+      ui.layerVisible[cb.dataset.layer] = cb.checked;
+      notify();
+    });
+  }
 }

@@ -163,6 +163,13 @@ html, body {
 
 .layer-list .layer:hover { background: rgba(255, 255, 255, 0.05); }
 
+.layer-list .layer label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
 /* --- Gombok --- */
 
 .btn {
@@ -205,6 +212,9 @@ html, body {
   gap: 6px;
   margin-bottom: 8px;
 }
+
+.tool-row.wrap { flex-wrap: wrap; }
+.tool-row.wrap .tool-btn { flex: none; }
 
 .tool-btn {
   flex: 1;
@@ -484,6 +494,31 @@ input.rename {
 .snap-hint {
   fill: none;
   stroke: var(--accent-warm);
+  pointer-events: none;
+}
+
+/* --- Bútor-könyvtár (szaniter/konyha/bútor/épületelem) --- */
+
+.furniture-body {
+  fill: transparent;
+  stroke: #4d5867;
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.furniture-label {
+  fill: #4d5867;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  user-select: none;
+}
+
+.furniture-selected {
+  fill: none;
+  stroke: var(--accent);
+  stroke-dasharray: 6 4;
   pointer-events: none;
 }
 

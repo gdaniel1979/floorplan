@@ -13,6 +13,7 @@ export function getPlan() {
   p.rooms ??= [];
   p.rooms = p.rooms.filter(r => r.seed && typeof r.seed.x === 'number'); // korábbi (kézzel rajzolt) helyiség-formátum eldobása
   p.objects ??= [];
+  p.furniture ??= [];
   return p;
 }
 

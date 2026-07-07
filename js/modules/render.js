@@ -83,6 +83,20 @@ export function renderAll() {
     }
   }
 
+  // bútor-tárgyak (szaniter/konyha/bútor/épületelem) — kategóriánként a
+  // Rétegek panelen ki-/bekapcsolható, a falak/nyílászárók mindig látszanak
+  for (const item of plan.furniture) {
+    if (!ui.layerVisible[item.category]) continue;
+    content.appendChild(furnitureSymbol(item, s));
+    if (item.id === ui.selectedFurnitureId) {
+      overlay.appendChild(el('rect', {
+        x: item.x - item.w / 2, y: item.y - item.h / 2, width: item.w, height: item.h,
+        class: 'furniture-selected', 'stroke-width': 2 / s,
+        transform: `rotate(${item.rotation} ${item.x} ${item.y})`,
+      }));
+    }
+  }
+
   // kijelölt fal kiemelése + fogantyúk
   const sel = plan.walls.find(w => w.id === ui.selectedWallId);
   if (sel) {
@@ -127,6 +141,48 @@ export function renderAll() {
 
   updateDoorWindowPanel(plan);
   updateWallOptionsPanel(plan);
+  updateFurnitureOptionsPanel(plan);
+}
+
+// --- bútor-tárgyak (szaniter/konyha/bútor/épületelem) ---
+
+// egy bútor-tárgy szimbóluma: középpontra igazított, forgatott téglalap +
+// középre írt felirat (a felirat is együtt forog a téglalappal)
+function furnitureSymbol(item, s) {
+  const g = el('g', {
+    class: 'furniture-symbol', transform: `rotate(${item.rotation} ${item.x} ${item.y})`,
+  });
+  g.appendChild(el('rect', {
+    x: item.x - item.w / 2, y: item.y - item.h / 2, width: item.w, height: item.h,
+    class: 'furniture-body', 'data-furniture': item.id, 'stroke-width': 1 / s,
+  }));
+  const label = el('text', {
+    x: item.x, y: item.y, class: 'furniture-label', 'font-size': 11 / s,
+  });
+  label.textContent = item.label;
+  g.appendChild(label);
+  return g;
+}
+
+// a kijelölt bútor panelje (típus + méret + forgatás) — csak kijelölt
+// tárgynál látszik, a mezők mindig az AKTUÁLIS értékét mutatják
+function updateFurnitureOptionsPanel(plan) {
+  const panel = document.getElementById('furniture-options');
+  const item = plan.furniture.find(f => f.id === ui.selectedFurnitureId);
+  if (panel) panel.hidden = !item;
+  if (!item) return;
+
+  const labelEl = document.getElementById('furniture-sel-label');
+  if (labelEl) labelEl.textContent = item.label;
+
+  const widthInput = document.getElementById('furniture-sel-width');
+  if (widthInput && document.activeElement !== widthInput) widthInput.value = item.w;
+
+  const depthInput = document.getElementById('furniture-sel-depth');
+  if (depthInput && document.activeElement !== depthInput) depthInput.value = item.h;
+
+  const rotInput = document.getElementById('furniture-sel-rotation');
+  if (rotInput && document.activeElement !== rotInput) rotInput.value = item.rotation;
 }
 
 // az ajtó-/ablak-opciók az oldalsávban csak akkor látszanak, ha az adott
