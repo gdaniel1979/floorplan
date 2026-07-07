@@ -21,6 +21,7 @@ import * as R from './raster.js';
 
 const CELL = 2; // cm – mindig ez a felbontás, függetlenül az épület méretétől
 const RADII = [500, 1000, 2000]; // cm – próbált fél-oldalhosszak, ha a helyiség nagyobb
+export const DEFAULT_ROOM_HEIGHT = 270; // cm – belmagasság, felület-számításhoz (surfaces.js)
 
 const DEFAULT_COLORS = ['#cfe8ff', '#ffe8cf', '#d9f2d0', '#f2d0e8', '#fff3b0', '#d0e8f2', '#e8d0f2', '#f2e0d0'];
 let colorCursor = 0;
@@ -136,6 +137,7 @@ export function addRoomAt(plan, seed) {
     id: newId(),
     name: `Helyiség ${plan.rooms.length + 1}`,
     color: nextDefaultColor(),
+    height: DEFAULT_ROOM_HEIGHT,
     seed: { x: round1(seed.x), y: round1(seed.y) },
   };
   plan.rooms.push(room);
@@ -152,6 +154,11 @@ export function renameRoom(plan, id, name) {
 export function recolorRoom(plan, id, color) {
   const r = plan.rooms.find(r => r.id === id);
   if (r) { r.color = color; notify(); }
+}
+
+export function setRoomHeight(plan, id, height) {
+  const r = plan.rooms.find(r => r.id === id);
+  if (r && height > 0) { r.height = round1(height); notify(); }
 }
 
 export function deleteRoom(plan, id) {

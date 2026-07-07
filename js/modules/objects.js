@@ -7,6 +7,9 @@ import { nodeById, wallById, wallLengthOf } from './plan.js';
 import * as G from './geometry.js';
 
 export const DEFAULT_WIDTH = { door: 90, window: 120 };
+// a nyílászáró magassága (cm) — jelenleg nem szerkeszthető, csak a felület-
+// számításhoz (surfaces.js) kell, a nyílászáró rajzát/geometriáját nem érinti
+export const DEFAULT_HEIGHT = { door: 210, window: 150 };
 const MIN_MARGIN = 5; // cm – legalább ennyi maradjon a fal végétől a nyílásig
 
 // a nyílás középpontjának megengedett tartománya egy adott falon

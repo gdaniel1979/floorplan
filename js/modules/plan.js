@@ -12,6 +12,7 @@ export function getPlan() {
   p.walls ??= [];
   p.rooms ??= [];
   p.rooms = p.rooms.filter(r => r.seed && typeof r.seed.x === 'number'); // korábbi (kézzel rajzolt) helyiség-formátum eldobása
+  for (const r of p.rooms) r.height ??= 270; // korábbi mentésekben még nincs belmagasság (lásd rooms.js DEFAULT_ROOM_HEIGHT)
   p.objects ??= [];
   p.furniture ??= [];
   return p;

@@ -6,6 +6,7 @@ import { getPlan, wallById, setWallLength } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
 import { CATALOG, setFurnitureSize, setFurnitureRotation, clearFurniture } from './furniture.js';
+import { setRoomHeight } from './rooms.js';
 
 export function initToolbar() {
   for (const b of document.querySelectorAll('.tool-btn[data-tool]')) {
@@ -43,6 +44,24 @@ export function initToolbar() {
   initWindowControls();
   initWallOptionsControls();
   initFurnitureControls();
+  initSurfacesControls();
+}
+
+// helyiségenkénti belmagasság-mező — a lista tartalma render.js-ben (dinamikusan,
+// helyiségenként) épül újra, ezért itt a STABIL szülő konténerre iratkozunk fel
+// (esemény-delegálás), nem az egyes (újra és újra létrejövő) input elemekre
+function initSurfacesControls() {
+  const container = document.getElementById('surfaces-list');
+  if (!container) return;
+  container.addEventListener('change', e => {
+    const input = e.target.closest('.surface-height');
+    if (!input) return;
+    const v = parseFloat(input.value);
+    if (!(v > 0)) return;
+    const before = snapshot();
+    setRoomHeight(getPlan(), input.dataset.room, v);
+    checkpoint(before);
+  });
 }
 
 // a kijelölt fal saját hossz-/vastagság-szerkesztője (render.js szinkronizálja

@@ -296,6 +296,30 @@ html, body {
   color: var(--fg-muted);
 }
 
+/* --- Felületek panel (helyiségenkénti belmagasság + fal-felület) --- */
+
+.surface-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.surface-row:last-child { border-bottom: none; }
+
+.surface-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.surface-name { font-weight: 600; }
+
+.surface-wall-area {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
 /* --- Ingatlan-navigátor — erősen elkülönülő blokk, mint a tile projekt-fája --- */
 
 .prop-tree-wrap {

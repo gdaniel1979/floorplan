@@ -11,6 +11,7 @@ import { getRoomTrace, polygonToPathD } from './rooms.js';
 import { objectGeometry } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
 import { rotatedPoint, rotateHandlePoint } from './furniture.js';
+import { computeRoomSurfaces } from './surfaces.js';
 
 export function renderAll() {
   const content = getContent();
@@ -153,6 +154,53 @@ export function renderAll() {
   updateDoorWindowPanel(plan);
   updateWallOptionsPanel(plan);
   updateFurnitureOptionsPanel(plan);
+  updateSurfacesPanel(plan);
+}
+
+// helyiségenkénti belmagasság + fal-felület panel — a fókuszban lévő
+// belmagasság-mezőt nem írja felül (ne szakítsa félbe a gépelést)
+function updateSurfacesPanel(plan) {
+  const container = document.getElementById('surfaces-list');
+  if (!container || container.contains(document.activeElement)) return;
+
+  const surfaces = computeRoomSurfaces(plan);
+  container.innerHTML = '';
+  for (const room of plan.rooms) {
+    const s = surfaces.get(room.id) || { floorAreaM2: 0, netWallAreaM2: 0 };
+
+    const row = document.createElement('div');
+    row.className = 'surface-row';
+
+    const head = document.createElement('div');
+    head.className = 'surface-row-head';
+    const name = document.createElement('span');
+    name.className = 'surface-name';
+    name.textContent = room.name;
+    const floor = document.createElement('span');
+    floor.className = 'muted';
+    floor.textContent = `${s.floorAreaM2.toFixed(1)} m² padló`;
+    head.append(name, floor);
+
+    const heightRow = document.createElement('div');
+    heightRow.className = 'control-row';
+    const label = document.createElement('label');
+    label.textContent = 'Belmagasság (cm)';
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'surface-height';
+    input.dataset.room = room.id;
+    input.min = '1';
+    input.step = '1';
+    input.value = room.height;
+    heightRow.append(label, input);
+
+    const wallArea = document.createElement('div');
+    wallArea.className = 'surface-wall-area muted';
+    wallArea.textContent = `${s.netWallAreaM2.toFixed(1)} m² fal (nettó, nyílászárók nélkül)`;
+
+    row.append(head, heightRow, wallArea);
+    container.appendChild(row);
+  }
 }
 
 // --- bútor-tárgyak (szaniter/konyha/bútor/épületelem) ---

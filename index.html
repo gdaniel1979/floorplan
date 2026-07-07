@@ -127,6 +127,7 @@
       <div class="tool-row" id="right-tabs">
         <button class="tool-btn active" data-tab="furniture">Bútorok</button>
         <button class="tool-btn" data-tab="layers">Rétegek</button>
+        <button class="tool-btn" data-tab="surfaces">Felületek</button>
       </div>
 
       <div class="tab-panel" data-tabpanel="furniture">
@@ -176,6 +177,14 @@
             <li class="layer"><label><input type="checkbox" data-layer="butor" checked> Bútorok</label></li>
             <li class="layer"><label><input type="checkbox" data-layer="epulet" checked> Épületelemek</label></li>
           </ul>
+        </section>
+      </div>
+
+      <div class="tab-panel" data-tabpanel="surfaces" hidden>
+        <section class="panel">
+          <h2>Felületek helyiségenként</h2>
+          <p class="hint">Belmagasság helyiségenként; a fal-felület a nyílászárók (ajtó/ablak) területével csökkentve.</p>
+          <div id="surfaces-list"></div>
         </section>
       </div>
     </aside>
