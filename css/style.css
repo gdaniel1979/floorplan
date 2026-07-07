@@ -33,7 +33,7 @@ html, body {
     "topbar topbar topbar topbar"
     "sidebar canvas rresizer rpanel";
   grid-template-rows: var(--topbar-h) 1fr;
-  grid-template-columns: var(--sidebar-w) 1fr 5px var(--right-panel-w);
+  grid-template-columns: var(--sidebar-w) minmax(300px, 1fr) 5px var(--right-panel-w);
   height: 100vh;
 }
 

@@ -40,15 +40,23 @@ export function getSvg() { return svg; }
 export function getContent() { return contentGroup; }
 export function getOverlay() { return overlayGroup; }
 
-// px/cm arány – a zoom-kijelzés és a vonalvastagság-korrekció alapja
+// px/cm arány – a zoom-kijelzés és a vonalvastagság-korrekció alapja. Sosem ad
+// vissza 0-t/NaN-t/Infinity-t (pl. ha a vászonnak pillanatnyilag nincs mérhető
+// szélessége) — az egész rajz sok helyen oszt ezzel, egy rossz érték az összes
+// koordinátát tartósan elrontaná
 export function getScale() {
-  return svg.clientWidth / vb.w;
+  const s = svg.clientWidth / vb.w;
+  return Number.isFinite(s) && s > 0 ? s : ZOOM_MIN;
 }
 
 export function onViewChange(fn) { viewListeners.push(fn); }
 
 export function clientToWorld(clientX, clientY) {
   const rect = svg.getBoundingClientRect();
+  // ha a vászonnak pillanatnyilag nincs mérhető kiterjedése (pl. az elrendezés
+  // épp újraszámolódik), 0-val osztanánk — inkább a vb középpontját adjuk vissza,
+  // mint hogy NaN/Infinity kerüljön a (tartósan tárolt) nézet-állapotba
+  if (!rect.width || !rect.height) return { x: vb.x + vb.w / 2, y: vb.y + vb.h / 2 };
   return {
     x: vb.x + (clientX - rect.left) / rect.width * vb.w,
     y: vb.y + (clientY - rect.top) / rect.height * vb.h,
@@ -75,9 +83,10 @@ export function fitToBounds(minX, minY, maxX, maxY) {
 
 // pan indítása (a tools.js hívja, amikor a helyzet pan-t kíván)
 export function beginPan(e) {
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return; // lásd clientToWorld megjegyzését
   svg.classList.add('panning');
   const start = { x: e.clientX, y: e.clientY, vbx: vb.x, vby: vb.y };
-  const rect = svg.getBoundingClientRect();
 
   function move(ev) {
     vb.x = start.vbx - (ev.clientX - start.x) / rect.width * vb.w;
@@ -106,6 +115,15 @@ function fitAspect() {
 }
 
 function applyViewBox() {
+  // önjavítás: ha a nézet-állapot (pl. egy pillanatnyilag 0 méretű vászon
+  // miatti nullával/érvénytelen értékkel osztás következtében) valahogy
+  // mégis érvénytelenné válna, inkább egy ép alapállapotra állunk vissza,
+  // mint hogy a hiba minden további újrarajzolásnál megismétlődjön
+  if (![vb.x, vb.y, vb.w, vb.h].every(Number.isFinite) || vb.w <= 0 || vb.h <= 0) {
+    console.warn('Érvénytelen nézet-állapot, visszaállítás alapértelmezettre.');
+    vb.x = -200; vb.y = -150; vb.w = INITIAL_VIEW_WIDTH; vb.h = INITIAL_VIEW_WIDTH * 0.6;
+  }
+
   svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
 
   // a rács-téglalap mindig fedje a látható területet
@@ -173,15 +191,19 @@ function buildOrigin() {
 
 function onWheel(e) {
   e.preventDefault();
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return; // lásd clientToWorld megjegyzését
   const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
   const newScale = getScale() * factor;
-  if (newScale < ZOOM_MIN || newScale > ZOOM_MAX) return;
+  // a Number.isFinite check azért kell, mert egy NaN newScale (pl. ha getScale()
+  // már korábban elromlott) egyik "< MIN"/"> MAX" feltételt sem teljesítené,
+  // tehát a korábbi kód átengedte volna — ez véglegesen elrontotta a vb-t
+  if (!Number.isFinite(newScale) || newScale < ZOOM_MIN || newScale > ZOOM_MAX) return;
 
   // a kurzor alatti világpont maradjon helyben
   const p = clientToWorld(e.clientX, e.clientY);
   vb.w /= factor;
   vb.h /= factor;
-  const rect = svg.getBoundingClientRect();
   vb.x = p.x - (e.clientX - rect.left) / rect.width * vb.w;
   vb.y = p.y - (e.clientY - rect.top) / rect.height * vb.h;
   applyViewBox();

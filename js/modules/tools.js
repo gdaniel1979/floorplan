@@ -218,6 +218,10 @@ function onDown(e) {
   beginPan(e);
 }
 
+// bútor (ellentétben az ajtóval/ablakkal) BÁRHOVA lerakható, fal nélkül is —
+// ezért itt (eltérően a nyílászáróktól) egy elhelyezés után visszaváltunk
+// Kijelölésre, nehogy egy újabb, a falra/helyiségre szánt kattintás
+// észrevétlenül újabb és újabb tárgyat rakjon le
 function placeFurniture(plan, p) {
   if (!ui.furnitureCategory || !ui.furniturePendingType) {
     showToast('Válassz egy tárgyat a Bútorok panelen.');
@@ -227,6 +231,7 @@ function placeFurniture(plan, p) {
   const item = addFurniture(plan, ui.furnitureCategory, ui.furniturePendingType, p);
   if (!item) { showToast('Nem sikerült elhelyezni a tárgyat.'); return; }
   checkpoint(before);
+  setTool('select');
   ui.selectedFurnitureId = item.id;
   renderAll();
 }

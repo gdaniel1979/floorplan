@@ -65,6 +65,13 @@ export function deleteFurniture(plan, id) {
   notify();
 }
 
+// az összes bútor-tárgy törlése (vagy egy adott kategóriáé, ha meg van adva) —
+// pl. véletlenül felhalmozott elhelyezések gyors eltávolítására
+export function clearFurniture(plan, category = null) {
+  plan.furniture = category ? plan.furniture.filter(f => f.category !== category) : [];
+  notify();
+}
+
 export function moveFurniture(plan, item, x, y) {
   item.x = round1(x);
   item.y = round1(y);

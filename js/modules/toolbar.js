@@ -5,7 +5,7 @@ import { setTool } from './tools.js';
 import { getPlan, wallById, setWallLength } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
-import { CATALOG, setFurnitureSize, setFurnitureRotation } from './furniture.js';
+import { CATALOG, setFurnitureSize, setFurnitureRotation, clearFurniture } from './furniture.js';
 
 export function initToolbar() {
   for (const b of document.querySelectorAll('.tool-btn[data-tool]')) {
@@ -220,6 +220,20 @@ function initFurnitureControls() {
     cb.addEventListener('change', () => {
       ui.layerVisible[cb.dataset.layer] = cb.checked;
       notify();
+    });
+  }
+
+  // véletlenül felhalmozott bútor-tárgyak gyors eltávolítása (pl. ha az
+  // elhelyezés-mód ragadva maradt, és sok tárgy rakódott le egymás után)
+  const clearBtn = document.getElementById('clear-furniture-btn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      const plan = getPlan();
+      if (!plan || !plan.furniture.length) return;
+      if (!confirm(`Törlöd mind a(z) ${plan.furniture.length} elhelyezett bútor-tárgyat? Ctrl+Z-vel visszavonható.`)) return;
+      const before = snapshot();
+      clearFurniture(plan);
+      checkpoint(before);
     });
   }
 }
