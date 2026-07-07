@@ -82,10 +82,17 @@ function initWallOptionsControls() {
   customInput.addEventListener('change', applyThickness);
 }
 
+// a kijelölt (adott fajtájú) nyílászáró, vagy null, ha nincs ilyen kijelölve —
+// ez adja meg, hogy egy vezérlő a kijelölt objektum TÉNYLEGES állapotát
+// olvassa-e (szerkesztéskor), vagy csak az új-nyílászáró alapértéket (ui.*)
+function selectedOfKind(kind) {
+  const plan = getPlan();
+  return plan && plan.objects.find(o => o.id === ui.selectedObjectId && o.kind === kind);
+}
+
 // a kijelölt objektumra alkalmazza a módosítást, ha az a megadott fajtájú, history-checkponttal
 function applyToSelectedObject(kind, mutate) {
-  const plan = getPlan();
-  const obj = plan && plan.objects.find(o => o.id === ui.selectedObjectId && o.kind === kind);
+  const obj = selectedOfKind(kind);
   if (!obj) return;
   const before = snapshot();
   mutate(obj);
@@ -98,14 +105,19 @@ function initDoorControls() {
   const flipSideBtn = document.getElementById('door-flip-side');
   const withLeafSelect = document.getElementById('door-with-leaf');
 
+  // minden gomb a KIJELÖLT ajtó tényleges állapotából indul ki (ha van ilyen),
+  // nem a esetleg elavult ui.door* alapértékből — így a gomb a valódi
+  // "jelenlegi állapot ellentettjét" állítja be, nem egy véletlenszerű régi értéket
   flipHingeBtn.addEventListener('click', () => {
-    ui.doorFlipHinge = !ui.doorFlipHinge;
+    const obj = selectedOfKind('door');
+    ui.doorFlipHinge = !(obj ? obj.flipHinge : ui.doorFlipHinge);
     flipHingeBtn.classList.toggle('active', ui.doorFlipHinge);
     applyToSelectedObject('door', o => { o.flipHinge = ui.doorFlipHinge; });
   });
 
   flipSideBtn.addEventListener('click', () => {
-    ui.doorFlipSide = !ui.doorFlipSide;
+    const obj = selectedOfKind('door');
+    ui.doorFlipSide = !(obj ? obj.flipSide : ui.doorFlipSide);
     flipSideBtn.classList.toggle('active', ui.doorFlipSide);
     applyToSelectedObject('door', o => { o.flipSide = ui.doorFlipSide; });
   });
@@ -126,7 +138,8 @@ function initWindowControls() {
   });
 
   flipSideBtn.addEventListener('click', () => {
-    ui.windowFlipSide = !ui.windowFlipSide;
+    const obj = selectedOfKind('window');
+    ui.windowFlipSide = !(obj ? obj.flipSide : ui.windowFlipSide);
     flipSideBtn.classList.toggle('active', ui.windowFlipSide);
     applyToSelectedObject('window', o => { o.flipSide = ui.windowFlipSide; });
   });

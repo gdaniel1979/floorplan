@@ -130,13 +130,38 @@ export function renderAll() {
 }
 
 // az ajtó-/ablak-opciók az oldalsávban csak akkor látszanak, ha az adott
-// eszköz aktív, vagy épp olyan fajtájú nyílászáró van kijelölve
+// eszköz aktív, vagy épp olyan fajtájú nyílászáró van kijelölve — kijelölt
+// nyílászárónál a vezérlők a TÉNYLEGES állapotát mutatják, különben az új
+// nyílászárókra vonatkozó (ui.door*/ui.window*) alapértéket
 function updateDoorWindowPanel(plan) {
   const sel = plan.objects.find(o => o.id === ui.selectedObjectId);
   const doorOptions = document.getElementById('door-options');
   const windowOptions = document.getElementById('window-options');
-  if (doorOptions) doorOptions.hidden = !(ui.tool === 'door' || sel?.kind === 'door');
-  if (windowOptions) windowOptions.hidden = !(ui.tool === 'window' || sel?.kind === 'window');
+  const showDoor = ui.tool === 'door' || sel?.kind === 'door';
+  const showWindow = ui.tool === 'window' || sel?.kind === 'window';
+  if (doorOptions) doorOptions.hidden = !showDoor;
+  if (windowOptions) windowOptions.hidden = !showWindow;
+
+  if (showDoor) syncDoorControls(sel?.kind === 'door' ? sel : null);
+  if (showWindow) syncWindowControls(sel?.kind === 'window' ? sel : null);
+}
+
+function syncDoorControls(door) {
+  const withLeafSelect = document.getElementById('door-with-leaf');
+  const flipHingeBtn = document.getElementById('door-flip-hinge');
+  const flipSideBtn = document.getElementById('door-flip-side');
+  const withLeaf = door ? door.withLeaf !== false : ui.doorWithLeaf;
+  if (withLeafSelect && document.activeElement !== withLeafSelect) withLeafSelect.value = withLeaf ? 'leaf' : 'opening';
+  if (flipHingeBtn) flipHingeBtn.classList.toggle('active', door ? !!door.flipHinge : ui.doorFlipHinge);
+  if (flipSideBtn) flipSideBtn.classList.toggle('active', door ? !!door.flipSide : ui.doorFlipSide);
+}
+
+function syncWindowControls(win) {
+  const sashSelect = document.getElementById('window-sash-count');
+  const flipSideBtn = document.getElementById('window-flip-side');
+  const sashCount = win ? win.sashCount : ui.windowSashCount;
+  if (sashSelect && document.activeElement !== sashSelect) sashSelect.value = String(sashCount);
+  if (flipSideBtn) flipSideBtn.classList.toggle('active', win ? !!win.flipSide : ui.windowFlipSide);
 }
 
 // a kijelölt fal panelje (hossz + vastagság) — csak kijelölt falnál látszik,
