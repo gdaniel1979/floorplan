@@ -4,7 +4,7 @@
 // újrarajzolás.
 
 import { el, getContent, getOverlay, getScale, setGridVisible, setOriginVisible } from './canvas.js';
-import { getPlan, nodeById, wallById, wallLengthOf, wallInteriorLengthOf, endDeductionAt, throughPartner } from './plan.js';
+import { getPlan, nodeById, wallById, wallLengthOf, wallInteriorLengthOf, endDeductionAt, throughPartner, wallClearances } from './plan.js';
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
@@ -123,10 +123,29 @@ export function renderAll() {
         d: G.wallPathD(a, b, sel.bulge || 0),
         class: 'wall-selected', 'stroke-width': sel.thickness,
       }));
+      // Az ív-fogantyú a fal MELLETT ül, nem a közepén: a fal közepe a
+      // legkézenfekvőbb hely a megfogásra, ha valaki arrébb akarja tolni a
+      // falat — ha ott az ív-fogantyú volt, oldalra húzva véletlenül
+      // meggörbítette. Az ívelt fal pedig nem sraffozottan, hanem vékony
+      // vonalként rajzolódik, ezért úgy tűnt, mintha a fal eltűnt volna.
       const m = sel.bulge ? G.arcMidpoint(a, b, sel.bulge) : G.mid(a, b);
+      const nrm = G.normal(a, b);
+      const side = sel.bulge ? Math.sign(sel.bulge) : 1;
+      const off = sel.thickness / 2 + 16 / s;
+      const hp = { x: m.x + nrm.x * off * side, y: m.y + nrm.y * off * side };
+
       overlay.appendChild(handle(a.x, a.y, s, 'a', { 'data-wall': sel.id }));
       overlay.appendChild(handle(b.x, b.y, s, 'b', { 'data-wall': sel.id }));
-      overlay.appendChild(handle(m.x, m.y, s, 'mid', { 'data-wall': sel.id }, true));
+      overlay.appendChild(el('line', {
+        x1: m.x, y1: m.y, x2: hp.x, y2: hp.y,
+        class: 'bulge-handle-line', 'stroke-width': 1 / s,
+      }));
+      overlay.appendChild(handle(hp.x, hp.y, s, 'mid', { 'data-wall': sel.id }, true));
+
+      // szabad távolság a két oldalán lévő szomszédos falig — húzás közben is
+      // frissül, így látszik, mekkorák lesznek a szomszédos helyiségek
+      const clear = clearanceLabels(plan, sel, s);
+      if (clear) overlay.appendChild(clear);
     }
   }
 
@@ -745,6 +764,60 @@ function roomLabel(room, trace, s) {
 // cm -> "2,85" (magyar tizedesvessző, 2 tizedes, a felesleges nullák nélkül)
 function formatMeters(cm) {
   return (cm / 100).toFixed(2).replace('.', ',');
+}
+
+// --- kijelölt fal: szabad távolság a két oldalán lévő szomszédos falig ---
+//
+// A geometria a plan.js-ben van (wallClearances), mert a szerkesztés is
+// használja. Itt csak kirajzoljuk. A szám KATTINTHATÓ: pontos érték írható be,
+// ha a 10 cm-es húzási lépték nem elég finom.
+function clearanceLabels(plan, w, s) {
+  const c = wallClearances(plan, w);
+  if (!c) return null;
+  const g = el('g', { class: 'clearance' });
+  for (const key of ['neg', 'pos']) {
+    if (c[key]) g.appendChild(clearanceDim(c, c[key], key, w, s));
+  }
+  return g;
+}
+
+// egy oldal mérővonala: a fal síkjától a szomszéd fal síkjáig, a számmal
+function clearanceDim(c, side, sideKey, w, s) {
+  const g = el('g');
+  const { a, dir, nrm, half } = c;
+  const sign = Math.sign(side.offset);
+  const base = { x: a.x + dir.x * side.overlapAt, y: a.y + dir.y * side.overlapAt };
+  const from = { x: base.x + nrm.x * half * sign, y: base.y + nrm.y * half * sign };
+  const to = {
+    x: from.x + nrm.x * sign * side.clear,
+    y: from.y + nrm.y * sign * side.clear,
+  };
+
+  g.appendChild(el('line', {
+    x1: from.x, y1: from.y, x2: to.x, y2: to.y,
+    class: 'clearance-line', 'stroke-width': 1.2 / s,
+  }));
+  for (const p of [from, to]) {
+    g.appendChild(el('line', {
+      x1: p.x - dir.x * 5 / s, y1: p.y - dir.y * 5 / s,
+      x2: p.x + dir.x * 5 / s, y2: p.y + dir.y * 5 / s,
+      class: 'clearance-tick', 'stroke-width': 1.2 / s,
+    }));
+  }
+
+  let deg = Math.atan2(dir.y, dir.x) * 180 / Math.PI + 90;
+  if (deg > 90 || deg <= -90) deg += 180;
+  const mid = G.mid(from, to);
+  const label = el('text', {
+    x: mid.x, y: mid.y,
+    class: 'clearance-label', 'font-size': 12 / s, 'stroke-width': 3 / s,
+    'text-anchor': 'middle', 'dominant-baseline': 'middle',
+    'data-wall': w.id, 'data-clear-side': sideKey,
+    transform: `rotate(${deg} ${mid.x} ${mid.y})`,
+  });
+  label.textContent = formatMeters(side.clear);
+  g.appendChild(label);
+  return g;
 }
 
 // --- nyílászáró-méretjelölés (90/210) ---

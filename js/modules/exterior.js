@@ -204,10 +204,38 @@ export function getDimensionChains(plan) {
   return chains;
 }
 
+// A gyorsítótár kulcsa: 32 BITES EGÉSZ hash (FNV-1a), Math.imul-lal.
+//
+// A korábbi változat lebegőpontosan halmozott (h = h * 33 + ...), ami kb. 12
+// csomópont fölött túlnőtt a double 15-16 értékes jegyén: onnantól a KÉSŐBBI
+// csomópontok koordinátái egyszerűen elvesztek a kerekítésben. Az ujjlenyomat
+// így nem változott akkor sem, amikor a rajz igen — a fal-alak és a méretlánc
+// a régi geometriával maradt a gyorsítótárban. A tünet: a falat elhúzva és
+// elengedve a sraffozott fal a régi helyén maradt, és csak a (közvetlenül a
+// csomópontokból rajzolt) kijelölés ugrott az új helyre.
+//
+// A fal végpontjait is bele kell keverni, nem csak a vastagságát: egyébként a
+// falak ÁTKÖTÉSE (ugyanannyi csomópont és fal, más összeköttetéssel) sem
+// látszana meg.
 function fingerprint(plan) {
-  let h = plan.nodes.length * 31 + plan.walls.length;
-  for (const n of plan.nodes) h = h * 33 + n.x * 7 + n.y * 13;
-  for (const w of plan.walls) h = h * 33 + w.thickness * 3 + (w.bulge || 0) * 5;
+  let h = 2166136261;
+  const mix = v => { h = Math.imul(h ^ (v | 0), 16777619); };
+
+  mix(plan.nodes.length);
+  mix(plan.walls.length);
+
+  const idx = new Map();
+  plan.nodes.forEach((n, i) => {
+    idx.set(n.id, i);
+    mix(Math.round(n.x * 10));
+    mix(Math.round(n.y * 10));
+  });
+  for (const w of plan.walls) {
+    mix(idx.has(w.a) ? idx.get(w.a) : -1);
+    mix(idx.has(w.b) ? idx.get(w.b) : -1);
+    mix(Math.round(w.thickness * 10));
+    mix(Math.round((w.bulge || 0) * 100));
+  }
   return h;
 }
 

@@ -207,6 +207,72 @@ export function setWallLength(plan, w, len, grow = 'auto') {
   notify();
 }
 
+// --- szabad távolság a fal két oldalán lévő szomszédos falig ---
+//
+// A legközelebbi PÁRHUZAMOS fal síkjáig mért távolság mindkét oldalon — ez az,
+// amit a felhasználó "a helyiség mérete"-ként lát. Tisztán analitikus, ezért
+// húzás közben is újraszámolható (a helyiség-nyomvonalak raszterezése nem az).
+export function wallClearances(plan, w) {
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b || w.bulge) return null;
+  const len = G.dist(a, b);
+  if (len < 1) return null;
+
+  const dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+  const nrm = { x: -dir.y, y: dir.x };
+  const half = w.thickness / 2;
+
+  let neg = null, pos = null;
+  for (const o of plan.walls) {
+    if (o.id === w.id || o.bulge) continue;
+    const oa = nodeById(plan, o.a), ob = nodeById(plan, o.b);
+    if (!oa || !ob) continue;
+    const oLen = G.dist(oa, ob);
+    if (oLen < 1) continue;
+    const oDir = { x: (ob.x - oa.x) / oLen, y: (ob.y - oa.y) / oLen };
+    if (Math.abs(dir.x * oDir.y - dir.y * oDir.x) > 1e-3) continue; // nem párhuzamos
+
+    // csak akkor szomszéd, ha a hossza mentén át is fedik egymást
+    const t0 = (oa.x - a.x) * dir.x + (oa.y - a.y) * dir.y;
+    const t1 = (ob.x - a.x) * dir.x + (ob.y - a.y) * dir.y;
+    if (Math.min(t0, t1) > len - 1 || Math.max(t0, t1) < 1) continue;
+
+    const offset = (oa.x - a.x) * nrm.x + (oa.y - a.y) * nrm.y;
+    const clear = Math.abs(offset) - half - o.thickness / 2;
+    if (clear < 0.5) continue; // egy vonalban vagy átfedésben, nincs mit mérni
+
+    // a mérővonal az átfedés harmadánál fut, nem a közepén — a helyiség
+    // név/terület felirata a súlypontban ül, ott takarnák egymást
+    const lo = Math.max(0, Math.min(t0, t1)), hi = Math.min(len, Math.max(t0, t1));
+    const cand = { offset, clear, overlapAt: lo + (hi - lo) * 0.32 };
+    if (offset < 0) { if (!neg || Math.abs(offset) < Math.abs(neg.offset)) neg = cand; }
+    else if (!pos || offset < pos.offset) pos = cand;
+  }
+
+  if (!neg && !pos) return null;
+  return { a, dir, nrm, half, neg, pos };
+}
+
+// A fal ELTOLÁSA önmagára merőlegesen úgy, hogy a megadott oldalon a szabad
+// távolság pontosan `value` legyen. A fal két végpontja együtt mozdul; a
+// végein csatlakozó (az elmozdulással párhuzamos) falak csak megnyúlnak vagy
+// rövidülnek — a derékszögek megmaradnak.
+export function setWallClearance(plan, w, sideKey, value) {
+  const c = wallClearances(plan, w);
+  const side = c && c[sideKey];
+  if (!side || !(value > 0)) return;
+
+  const delta = value - side.clear;
+  if (Math.abs(delta) < 0.01) return;
+  const dirSign = -Math.sign(side.offset); // a szomszédtól ELFELÉ növelünk
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  for (const n of [a, b]) {
+    n.x = round1(n.x + c.nrm.x * dirSign * delta);
+    n.y = round1(n.y + c.nrm.y * dirSign * delta);
+  }
+  notify();
+}
+
 // csomópontok fokszáma (hány fal csatlakozik)
 export function nodeDegrees(plan) {
   const deg = new Map();

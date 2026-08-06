@@ -766,6 +766,33 @@ input.rename {
 
 .dim-label-total { font-weight: 600; }
 
+/* Kijelölt fal: szabad távolság a két oldali szomszédig (húzás közben is él).
+   Narancs, hogy elkülönüljön a kék, végleges méretezéstől — ez egy segéd-
+   kijelzés, ami csak a kijelölés idejére szól. */
+.clearance-line,
+.clearance-tick {
+  stroke: #d2691e;
+  fill: none;
+  pointer-events: none;
+}
+
+/* vékony összekötő az ív-fogantyúhoz, ami a fal mellett ül */
+.bulge-handle-line {
+  stroke: #4c9aff;
+  stroke-dasharray: 3 3;
+  fill: none;
+  pointer-events: none;
+}
+
+.clearance-label {
+  fill: #b3560f;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #ffffff;
+  cursor: text;   /* kattintva pontos érték írható be */
+}
+
 /* Lebegő hossz-kijelző rajzolás közben */
 #draw-float {
   position: absolute;

@@ -3,7 +3,7 @@
 // helyiség-kijelölés kattintással.
 
 import { getSvg, getOverlay, getScale, clientToWorld, beginPan, el } from './canvas.js';
-import { getPlan, findNodeNear, nodeById, wallById, addNode, addWall, deleteWall, mergeNodes, cleanupOrphanNodes, setWallInteriorLength, wallInteriorLengthOf, endDeductionAt, round1 } from './plan.js';
+import { getPlan, findNodeNear, nodeById, wallById, addNode, addWall, deleteWall, mergeNodes, cleanupOrphanNodes, setWallInteriorLength, wallInteriorLengthOf, endDeductionAt, wallClearances, setWallClearance, round1 } from './plan.js';
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { notify, activeLevel } from './state.js';
@@ -160,6 +160,12 @@ function onDown(e) {
 
   if (t.classList?.contains('len-label')) {
     openLengthEditor(t.dataset.wall, e.clientX, e.clientY);
+    return;
+  }
+
+  // a szabad-táv szám: pontos érték beírható, ha a húzási lépték nem elég finom
+  if (t.classList?.contains('clearance-label')) {
+    openClearanceEditor(t.dataset.wall, t.dataset.clearSide, e.clientX, e.clientY);
     return;
   }
 
@@ -604,7 +610,14 @@ function startHandleDrag(plan, kind, wallId, startP) {
   ui.dragging = true;
 
   if (kind === 'mid') {
-    drag = { kind: 'mid', w, before };
+    // az ív-fogantyú a fal MELLETT van, ezért a megfogás pillanatában mért
+    // nyílmagasság nem nulla — ezt az eltolást levonjuk, különben a fal már a
+    // puszta megfogástól megugrana
+    const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+    const m = G.mid(a, b), n = G.normal(a, b);
+    const grabS = (startP.x - m.x) * n.x + (startP.y - m.y) * n.y;
+    const curS = (w.bulge || 0) * G.dist(a, b) / 2;
+    drag = { kind: 'mid', w, before, grabOffset: grabS - curS };
   } else {
     const nodeId = kind === 'a' ? w.a : w.b;
     drag = { kind: 'node', nodeId, before };
@@ -680,8 +693,11 @@ function applyDrag(plan, p, shiftKey) {
       }));
     }
   } else if (drag.kind === 'body') {
-    const dx = Math.round((p.x - drag.start.x) / GRID_MINOR) * GRID_MINOR;
-    const dy = Math.round((p.y - drag.start.y) / GRID_MINOR) * GRID_MINOR;
+    // Shift: finom (1 cm-es) lépték a szokásos 10 cm helyett — a pontos
+    // értéket a szabad-táv számra kattintva is be lehet írni
+    const step = shiftKey ? 1 : GRID_MINOR;
+    const dx = Math.round((p.x - drag.start.x) / step) * step;
+    const dy = Math.round((p.y - drag.start.y) / step) * step;
     const a = nodeById(plan, drag.w.a), b = nodeById(plan, drag.w.b);
     a.x = drag.orig.ax + dx; a.y = drag.orig.ay + dy;
     b.x = drag.orig.bx + dx; b.y = drag.orig.by + dy;
@@ -691,7 +707,7 @@ function applyDrag(plan, p, shiftKey) {
     const m = G.mid(a, b);
     const n = G.normal(a, b);
     const chord = G.dist(a, b);
-    let s = (p.x - m.x) * n.x + (p.y - m.y) * n.y; // előjeles nyílmagasság
+    let s = (p.x - m.x) * n.x + (p.y - m.y) * n.y - (drag.grabOffset || 0); // előjeles nyílmagasság
     if (Math.abs(s) < 8 / getScale()) s = 0;       // kis értéknél visszaugrik egyenesbe
     // legfeljebb félkörig görbíthető
     const maxS = chord / 2;
@@ -747,6 +763,25 @@ function finishDrag(plan, p) {
   renderAll(); // a húzás alatt gyorsítótárazott helyiség-nyomvonalak most frissülnek pontosra
 }
 
+// a szabad-táv szám szerkesztése: a fal ONNAN elfelé/felé tolódik, hogy az
+// adott oldalon pontosan a beírt méret maradjon
+function openClearanceEditor(wallId, sideKey, clientX, clientY) {
+  closeEditor();
+  const plan = getPlan();
+  const w = wallById(plan, wallId);
+  const c = w && wallClearances(plan, w);
+  const side = c && c[sideKey];
+  if (!side) return;
+
+  openValueEditor(Math.round(side.clear), clientX, clientY, v => {
+    const before = snapshot();
+    setWallClearance(plan, w, sideKey, v);
+    repairWallNetwork(plan);
+    notify();
+    checkpoint(before);
+  });
+}
+
 // ------------------------------------------------- hossz-címke szerkesztése
 
 function openLengthEditor(wallId, clientX, clientY) {
@@ -760,6 +795,15 @@ function openLengthEditor(wallId, clientX, clientY) {
   ui.selectedObjectId = null;
   renderAll();
 
+  openValueEditor(Math.round(wallInteriorLengthOf(plan, w)), clientX, clientY, v => {
+    const before = snapshot();
+    setWallInteriorLength(plan, w, v, ui.wallGrow); // a címke belméretet mutat, a bevitel is az
+    checkpoint(before);
+  });
+}
+
+// a rajzra kitett kis cm-beviteli buborék (hossz- és szabad-táv szerkesztéshez)
+function openValueEditor(initial, clientX, clientY, onCommit) {
   const rect = wrap.getBoundingClientRect();
   editorEl = document.createElement('div');
   editorEl.className = 'len-editor';
@@ -769,22 +813,25 @@ function openLengthEditor(wallId, clientX, clientY) {
   const input = document.createElement('input');
   input.type = 'number';
   input.min = '1';
-  input.value = Math.round(wallInteriorLengthOf(plan, w));
+  input.value = initial;
   editorEl.appendChild(input);
   editorEl.append(' cm');
   wrap.appendChild(editorEl);
   input.focus();
   input.select();
 
+  const box = editorEl;
+  let done = false;
   function finish(commit) {
+    // az Enter és az utána következő blur is ide fut be — csak egyszer zárunk
+    // (enélkül a második hívás már eltávolított elemen dolgozna, és kivételt
+    // dobna a húzás/kattintás közepén)
+    if (done) return;
+    done = true;
     const v = parseFloat(input.value);
-    if (commit && v > 0) {
-      const before = snapshot();
-      setWallInteriorLength(plan, w, v, ui.wallGrow); // a címke belméretet mutat, a bevitel is az
-      checkpoint(before);
-    }
-    editorEl.remove();
-    editorEl = null;
+    if (commit && v > 0) onCommit(v);
+    box.remove();
+    if (editorEl === box) editorEl = null;
     editorFinish = null;
   }
   editorFinish = finish;
