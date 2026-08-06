@@ -413,6 +413,7 @@ function updateWallOptionsPanel(plan) {
   }
 
   updateGrowSelect(plan, w);
+  updateAlignSelect(plan, w);
 
   const thickSelect = document.getElementById('wall-sel-thickness');
   const customRow = document.getElementById('wall-sel-custom-row');
@@ -448,6 +449,36 @@ function updateGrowSelect(plan, w) {
   // irányba nő, amerre az `a` vég van a `b`-hez képest
   optA.textContent = directionLabel(b, a);
   optB.textContent = directionLabel(a, b);
+}
+
+// A "Vastagítás iránya" választó feliratai a fal tényleges állásából: melyik
+// falsíkról van szó (felső/alsó, illetve bal/jobb), mert a belső "+/- normál"
+// a felhasználónak semmit nem mondana.
+let alignSelectWallId = null;
+
+function updateAlignSelect(plan, w) {
+  const sel = document.getElementById('wall-sel-align');
+  if (!sel) return;
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b) return;
+
+  if (alignSelectWallId !== w.id) {
+    alignSelectWallId = w.id;
+    ui.wallAlign = 'center';
+    sel.value = 'center';
+  }
+
+  const n = G.normal(a, b);
+  const plusOpt = sel.querySelector('option[value="plus"]');
+  const minusOpt = sel.querySelector('option[value="minus"]');
+  plusOpt.textContent = `${faceLabel(n)} marad`;
+  minusOpt.textContent = `${faceLabel({ x: -n.x, y: -n.y })} marad`;
+}
+
+// egy falsík megnevezése a normálisa irányából
+function faceLabel(n) {
+  if (Math.abs(n.x) >= Math.abs(n.y)) return n.x >= 0 ? 'Jobb oldali sík' : 'Bal oldali sík';
+  return n.y >= 0 ? 'Alsó sík' : 'Felső sík';
 }
 
 function directionLabel(from, to) {

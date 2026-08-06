@@ -478,10 +478,16 @@ function snapTol(otherThickness, ownThickness) {
 }
 
 // a ponthoz legközelebbi fal-tengely (merőleges vetülettel), ha elég közel van
-function wallLineNear(plan, p, ownThickness) {
+// gridAlong: a fal MENTÉN rácsra igazítsunk-e. Új fal indításánál igen (kerek
+// helyre kerüljön a csatlakozás), de egy MEGLÉVŐ végpont ráejtésénél nem — ott
+// a rácsra rántás akár a fal végére csúsztatná a pontot, és az illesztés
+// egyáltalán nem jönne létre.
+function wallLineNear(plan, p, ownThickness, excludeNodeId = null, gridAlong = true) {
   let best = null;
   for (const w of plan.walls) {
     if (w.bulge) continue;
+    // a húzott csomóponthoz tartozó falakra nem illesztünk (önmagára ugrana)
+    if (excludeNodeId && (w.a === excludeNodeId || w.b === excludeNodeId)) continue;
     const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
     if (!a || !b) continue;
     const len = G.dist(a, b);
@@ -490,13 +496,13 @@ function wallLineNear(plan, p, ownThickness) {
     // a fal MENTÉN a rácshoz igazítunk (a rácspontot vetítjük a tengelyre), a
     // falra merőlegesen pedig pontosan a tengelyre — így a csatlakozás kerek
     // helyre kerül, nem oda, ahova épp koppintottunk
-    const gp = G.snapToGrid(p, GRID_MINOR);
-    const t = (gp.x - a.x) * ux + (gp.y - a.y) * uy;
+    const base = gridAlong ? G.snapToGrid(p, GRID_MINOR) : p;
+    const t = (base.x - a.x) * ux + (base.y - a.y) * uy;
     if (t < 1 || t > len - 1) continue; // a végeknél a csomópont-illesztés dolgozik
     const proj = { x: round1(a.x + ux * t), y: round1(a.y + uy * t) };
     const d = G.dist(p, proj);
     if (d > snapTol(w.thickness, ownThickness)) continue;
-    if (!best || d < best.d) best = { point: proj, d };
+    if (!best || d < best.d) best = { point: proj, d, dir: { x: ux, y: uy } };
   }
   return best;
 }
@@ -644,7 +650,8 @@ function startHandleDrag(plan, kind, wallId, startP) {
     drag = { kind: 'mid', w, before, grabOffset: grabS - curS };
   } else {
     const nodeId = kind === 'a' ? w.a : w.b;
-    drag = { kind: 'node', nodeId, before };
+    const otherId = kind === 'a' ? w.b : w.a;
+    drag = { kind: 'node', nodeId, otherId, thickness: w.thickness, before };
   }
   bindDrag(plan);
 }
@@ -706,14 +713,43 @@ function applyDrag(plan, p, shiftKey) {
 
   if (drag.kind === 'node') {
     const n = nodeById(plan, drag.nodeId);
+    // Meglévő csomópontra VAGY meglévő fal tengelyére illesztünk — amelyik
+    // KÖZELEBB van —, különben a rácsra. A fal-tengelyre illesztés nélkül egy
+    // végpontot nem lehetett pontosan egy másik falra ejteni (a rács ritkán
+    // esik a fal tengelyére), ezért apró, ferde csonkokkal maradt összekötve.
+    // A "közelebbi nyer" azért kell, mert egy sarok-csomópont pár centire
+    // lehet attól a helytől, ahova a végpontot tenni akarjuk: ha mindig a
+    // csomópont győzne, a fal a sarokra ugorva megferdülne.
     const near = findNodeNear(plan, p, tol, drag.nodeId);
-    if (near) { n.x = near.x; n.y = near.y; }
+    const onWall = wallLineNear(plan, p, drag.thickness || ui.thickness, drag.nodeId, false);
+    const dNode = near ? G.dist(p, near) : Infinity;
+    const dWall = onWall ? onWall.d : Infinity;
+
+    if (near && dNode <= dWall) { n.x = near.x; n.y = near.y; }
+    else if (onWall) {
+      n.x = onWall.point.x; n.y = onWall.point.y;
+      // A célfal MENTÉN szabadon csúszhat a pont; ha ezzel a húzott fal
+      // majdnem tengelyirányú lenne, tegyük pontosan azzá — különben a
+      // kurzor pontosságával pár tized fokot ferdülne, és a csatlakozás
+      // megint lépcsős lenne.
+      const other = drag.otherId && nodeById(plan, drag.otherId);
+      if (other) {
+        if (Math.abs(onWall.dir.x) < 1e-6 && Math.abs(other.y - n.y) <= tol) n.y = other.y;
+        else if (Math.abs(onWall.dir.y) < 1e-6 && Math.abs(other.x - n.x) <= tol) n.x = other.x;
+      }
+    }
     else { const g = G.snapToGrid(p, GRID_MINOR); n.x = g.x; n.y = g.y; }
     notify();
-    if (near) {
+    // az illesztés jelzése oda kerül, ahova a végpont TÉNYLEGESEN ugrott
+    if (near && dNode <= dWall) {
       const s = getScale();
       getOverlay().appendChild(el('circle', {
         cx: near.x, cy: near.y, r: 9 / s, class: 'snap-hint', 'stroke-width': 2 / s,
+      }));
+    } else if (onWall) {
+      const s = getScale();
+      getOverlay().appendChild(el('circle', {
+        cx: onWall.point.x, cy: onWall.point.y, r: 9 / s, class: 'snap-hint', 'stroke-width': 2 / s,
       }));
     }
   } else if (drag.kind === 'body') {
@@ -770,10 +806,17 @@ function applyDrag(plan, p, shiftKey) {
 
 function finishDrag(plan, p) {
   if (drag?.kind === 'node') {
-    // másik csomópontra ejtve: összevonás (falak összekapcsolása)
+    // Másik csomópontra ejtve: összevonás (falak összekapcsolása). De csak
+    // akkor, ha a csomópont KÖZELEBB van, mint a legközelebbi fal tengelye —
+    // különben egy pár centire lévő sarok magához rántaná azt a végpontot,
+    // amit épp a fal oldalára akartunk tenni, és a fal megferdülne. Ez az
+    // összevonás egyébként felül is írta a húzás közbeni fal-illesztést.
     const tol = 12 / getScale();
     const near = findNodeNear(plan, p, tol, drag.nodeId);
-    if (near) {
+    const onWall = wallLineNear(plan, p, drag.thickness || ui.thickness, drag.nodeId, false);
+    const dNode = near ? G.dist(p, near) : Infinity;
+    const dWall = onWall ? onWall.d : Infinity;
+    if (near && dNode <= dWall) {
       mergeNodes(plan, near.id, drag.nodeId);
       if (!wallById(plan, ui.selectedWallId)) ui.selectedWallId = null;
       notify();

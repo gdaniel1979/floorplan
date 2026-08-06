@@ -351,6 +351,37 @@ function axisCorner(prev, cur, next, after) {
   return null;
 }
 
+// A rács-kontúr visszaillesztése a valódi falsíkokra (ld. plan.js
+// wallFacePlanes). Minden csúcs x/y koordinátáját a legközelebbi falsíkra
+// húzzuk, ha az `tol`-on belül van — így a legfeljebb egy cellányi
+// raszter-hiba eltűnik, és a szomszédos élek is pontosan egy vonalba állnak
+// (ettől olvadnak össze a hajszálnyi lépcsők).
+export function snapPolygonToPlanes(poly, planes, tol) {
+  const snap = (v, list) => {
+    let best = v, bestD = tol;
+    for (const p of list) {
+      const d = Math.abs(p - v);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    return best;
+  };
+  const snapped = poly.map(p => ({ x: snap(p.x, planes.xs), y: snap(p.y, planes.ys) }));
+
+  // az illesztéstől nulla hosszúvá vált élek kiesnek
+  const out = [];
+  for (const p of snapped) {
+    const prev = out[out.length - 1];
+    if (prev && Math.abs(prev.x - p.x) < 1e-6 && Math.abs(prev.y - p.y) < 1e-6) continue;
+    out.push(p);
+  }
+  while (out.length > 3) {
+    const first = out[0], last = out[out.length - 1];
+    if (Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.y - last.y) < 1e-6) out.pop();
+    else break;
+  }
+  return out.length >= 3 ? simplifyPolygon(out) : poly;
+}
+
 export function polygonAreaAndCentroid(pts) {
   let a = 0, cx = 0, cy = 0;
   const n = pts.length;

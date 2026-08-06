@@ -15,7 +15,7 @@
 // buborékban választható, későbbi (pl. anyagszámítási) felhasználáshoz.
 
 import { newId, notify } from './state.js';
-import { round1 } from './plan.js';
+import { round1, wallFacePlanes } from './plan.js';
 import { ui } from './uistate.js';
 import * as R from './raster.js';
 
@@ -79,8 +79,9 @@ function tryFlood(plan, seed, radius, isFinal) {
   if (touchedEdge) return isFinal ? null : 'expand'; // vagy tényleg nyitott, vagy csak a helyi rács volt kicsi
 
   const contourCells = R.traceContourFromScan(filled, cols, rows);
-  const poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
+  let poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
     R.cellToFacePoint(gx, gy, filled, cols, rows, minX, minY, cell))), cell);
+  poly = R.snapPolygonToPlanes(poly, wallFacePlanes(plan), cell);
   if (poly.length < 3) return null;
 
   const { area, cx, cy } = R.polygonAreaAndCentroid(poly);

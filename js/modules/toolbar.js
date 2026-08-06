@@ -2,7 +2,7 @@
 
 import { ui } from './uistate.js';
 import { setTool } from './tools.js';
-import { getPlan, wallById, setWallInteriorLength } from './plan.js';
+import { getPlan, wallById, setWallInteriorLength, setWallThickness } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
 import { CATALOG, LAYER_LABELS, setFurnitureSize, setFurnitureRotation, clearFurniture, setStairSteps, setStairDir } from './furniture.js';
@@ -92,6 +92,9 @@ function initWallOptionsControls() {
   const growSelect = document.getElementById('wall-sel-grow');
   growSelect?.addEventListener('change', () => { ui.wallGrow = growSelect.value; });
 
+  const alignSelect = document.getElementById('wall-sel-align');
+  alignSelect?.addEventListener('change', () => { ui.wallAlign = alignSelect.value; });
+
   function applyThickness() {
     const w = selectedWall();
     if (!w) return;
@@ -99,8 +102,7 @@ function initWallOptionsControls() {
     const v = thickSelect.value === 'custom' ? parseFloat(customInput.value) : parseFloat(thickSelect.value);
     if (!(v > 0) || w.thickness === v) return;
     const before = snapshot();
-    w.thickness = v;
-    notify();
+    setWallThickness(getPlan(), w, v, ui.wallAlign);
     checkpoint(before);
   }
 

@@ -86,6 +86,15 @@
           <label for="wall-sel-custom-thickness">Egyéni (cm)</label>
           <input type="number" id="wall-sel-custom-thickness" min="1" max="100" step="1">
         </div>
+        <div class="control-row">
+          <label for="wall-sel-align">Vastagítás iránya</label>
+          <select id="wall-sel-align">
+            <option value="center" selected>Tengelyre szimmetrikus</option>
+            <option value="plus"></option>
+            <option value="minus"></option>
+          </select>
+        </div>
+        <p class="hint">Vastagság-váltáskor melyik falsík maradjon a helyén. Lelépcsőző falhoz állítsd arra a síkra, aminek egyvonalban kell maradnia.</p>
       </section>
       <section class="panel">
         <h2>Nyílászárók</h2>

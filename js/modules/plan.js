@@ -273,6 +273,64 @@ export function setWallClearance(plan, w, sideKey, value) {
   notify();
 }
 
+// A fal vastagságának módosítása FALSÍK-IGAZÍTÁSSAL.
+//
+// A falak a tengelyükre szimmetrikusak, ezért vastagság-váltáskor alapból
+// mindkét síkjuk elmozdul a felével. Ha viszont az egyik síkot a helyén
+// akarjuk tartani (pl. egy lelépcsőző fal felső síkja végig egyvonalban
+// maradjon), a tengelyt el kell tolni a különbség felével.
+//
+//   align: 'center' — a tengely marad (alapértelmezés, a régi viselkedés)
+//          'plus'   — a normál (+) irányú falsík marad a helyén
+//          'minus'  — a másik falsík marad a helyén
+//
+// Az eltolás merőleges a falra: a két végpont EGYÜTT mozdul, a végein
+// csatlakozó (az elmozdulással párhuzamos) falak csak megnyúlnak — a
+// derékszögek megmaradnak, ahogy a setWallClearance-nél is.
+export function setWallThickness(plan, w, thickness, align = 'center') {
+  if (!(thickness > 0)) return;
+  const delta = thickness - w.thickness;
+  w.thickness = thickness;
+
+  if (align !== 'plus' && align !== 'minus') { notify(); return; }
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b || w.bulge || Math.abs(delta) < 0.01) { notify(); return; }
+
+  const n = G.normal(a, b);
+  const shift = (align === 'plus' ? -1 : 1) * delta / 2;
+  for (const node of [a, b]) {
+    node.x = round1(node.x + n.x * shift);
+    node.y = round1(node.y + n.y * shift);
+  }
+  notify();
+}
+
+// A falak VALÓDI síkjai, tengelyre merőlegesen bontva. A rács-alapú
+// alak-felismerés (raster.js) 2 cm-es cellákkal dolgozik, ezért a kontúr
+// legfeljebb egy cellányit tévedhet: a falsík hol pont a helyére, hol 1 cm-rel
+// mellé esik. Ez eltérő vastagságú falak találkozásánál apró lépcsőként is
+// kilátszik. A nyers kontúrt ezekre a síkokra illesztjük vissza.
+//
+// Csak a tengelyirányú (vízszintes/függőleges) falakkal foglalkozunk — ferde
+// falnál nincs egyetlen x/y sík, amire illeszteni lehetne.
+export function wallFacePlanes(plan) {
+  const xs = new Set(), ys = new Set();
+  for (const w of plan.walls) {
+    if (w.bulge) continue;
+    const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+    if (!a || !b) continue;
+    const half = w.thickness / 2;
+    if (Math.abs(a.y - b.y) < 0.01) {        // vízszintes fal
+      ys.add(a.y - half); ys.add(a.y + half);
+      xs.add(a.x); xs.add(b.x);              // a fal lapos vége
+    } else if (Math.abs(a.x - b.x) < 0.01) { // függőleges fal
+      xs.add(a.x - half); xs.add(a.x + half);
+      ys.add(a.y); ys.add(b.y);
+    }
+  }
+  return { xs: [...xs], ys: [...ys] };
+}
+
 // csomópontok fokszáma (hány fal csatlakozik)
 export function nodeDegrees(plan) {
   const deg = new Map();

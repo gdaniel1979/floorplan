@@ -7,7 +7,7 @@
 // rooms.js-ben), ezért gyorsítótárazva fut csak újra, ha a falak tényleg
 // változtak (lásd getDimensionChains).
 
-import { nodeById } from './plan.js';
+import { nodeById, wallFacePlanes } from './plan.js';
 import * as G from './geometry.js';
 import * as R from './raster.js';
 import { ui } from './uistate.js';
@@ -18,7 +18,12 @@ const MARGIN = 100; // cm – ennyivel nagyobb rácsot építünk az épület be
 // külső falnál egy T-elágazás csomópontja kb. fél-vastagságnyira (itt akár 15 cm) esik
 // a fal külső síkjától, ezért ennek a tűrésnek ezt is bőven le kell fednie
 const BREAK_TOL = 20;
-const MIN_SEG = 3; // cm – ennél közelebbi töréspontokat összevonjuk
+const MIN_SEG = 3; // cm – ennél közelebb az él végéhez nem keresünk töréspontot
+// cm – ennél közelebbi töréspontokat EGYNEK vesszük. Az ennél rövidebb szakasz
+// úgysem olvasható ki a rajzról, viszont a kivezető vonalai egymásra torlódnak.
+const MIN_BREAK_GAP = 12;
+// cm – ennél rövidebb sziluett-élre nem teszünk méretláncot (rács-zaj)
+const MIN_CHAIN_LEN = 12;
 const CORNER_TOL = 40; // cm – ilyen közelségben lévő valódi csomópont számít az él saját sarkának
                        // (ezt ki kell zárni a töréspont-keresésből, mert a tengelyponton van,
                        // nem a fal-síkon — máskülönben minden sarok mellett egy hamis "törés" jönne)
@@ -62,7 +67,7 @@ function buildWallMask(plan) {
   return { blocked, filled, cols, rows, minX, minY, cell };
 }
 
-function traceOuterSilhouette(mask) {
+function traceOuterSilhouette(mask, plan) {
   const { blocked, filled, cols, rows, minX, minY, cell } = mask;
 
   // a gyűrűnek két határa van: a rács saját (mesterséges) pereme, és az épület
@@ -86,21 +91,24 @@ function traceOuterSilhouette(mask) {
   if (startX < 0) return null; // nincs épület (üres alaprajz)
 
   const contourCells = R.traceContour(filled, cols, rows, startX, startY, startBackDir);
-  const poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
+  let poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
     R.cellToFacePoint(gx, gy, filled, cols, rows, minX, minY, cell))), cell);
+  poly = R.snapPolygonToPlanes(poly, wallFacePlanes(plan), cell);
   return poly.length >= 3 ? poly : null;
 }
 
 // a falak által teljesen körülzárt üres foltok (helyiség-szerű "lyukak") —
 // ez a render.js-beli fal-alak belső határainak forrása, függetlenül attól,
 // hogy a felhasználó rákattintott-e már az adott foltra a Helyiség eszközzel
-function findWallHoles(mask) {
+function findWallHoles(mask, plan) {
   const { blocked, filled, cols, rows, minX, minY, cell } = mask;
+  const planes = wallFacePlanes(plan);
   const rawHoles = R.traceAllHoles(blocked, filled, cols, rows);
   const polys = [];
   for (const { comp, contourCells } of rawHoles) {
-    const poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
+    let poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
       R.cellToFacePoint(gx, gy, comp, cols, rows, minX, minY, cell))), cell);
+    poly = R.snapPolygonToPlanes(poly, planes, cell);
     if (poly.length >= 3) polys.push(poly);
   }
   return polys;
@@ -116,8 +124,8 @@ function getWallShape(plan) {
   const key = fingerprint(plan);
   if (shapeCache && shapeCache.key === key) return shapeCache;
   const mask = buildWallMask(plan);
-  const silhouette = mask ? traceOuterSilhouette(mask) : null;
-  const holes = mask ? findWallHoles(mask) : [];
+  const silhouette = mask ? traceOuterSilhouette(mask, plan) : null;
+  const holes = mask ? findWallHoles(mask, plan) : [];
   shapeCache = { key, silhouette, holes };
   return shapeCache;
 }
@@ -143,7 +151,12 @@ export function dimensionChains(plan, silhouette) {
   for (let i = 0; i < n; i++) {
     const p1 = silhouette[i], p2 = silhouette[(i + 1) % n];
     const len = G.dist(p1, p2);
-    if (len < MIN_SEG) continue;
+    // A sziluett minden éle KÜLÖN méretláncot kap. A rács-alapú felismerés
+    // apró (néhány centis) éleket is hagyhat a csatlakozásoknál — főleg ott,
+    // ahol eltérő vastagságú falak találkoznak. Ezek saját "0,0x"-es
+    // méretláncként jelentek meg, egymásra torlódó kivezető vonalakkal.
+    // Ilyen rövid szakaszt nem méretezünk.
+    if (len < MIN_CHAIN_LEN) continue;
     const dir = G.unit(p1, p2);
     const rawNormal = G.normal(p1, p2);
     const mid = G.mid(p1, p2);
@@ -164,8 +177,22 @@ export function dimensionChains(plan, silhouette) {
       const perp = Math.abs((node.x - p1.x) * rawNormal.x + (node.y - p1.y) * rawNormal.y);
       if (perp <= BREAK_TOL) breaks.add(Math.round(t));
     }
-    const sortedBreaks = [...breaks].sort((a, b) => a - b);
-    const points = sortedBreaks.map(t => ({ x: p1.x + dir.x * t, y: p1.y + dir.y * t, t }));
+    // Az egymáshoz közel eső töréspontok összevonása. Enélkül két, néhány
+    // centire lévő csomópont (tipikusan eltérő vastagságú falak találkozásánál,
+    // vagy miután egy fal vastagságát átállították) külön-külön töréspontot
+    // kapott, és a lánc 0,0x-es szemét-szakaszokra esett szét, egymásra
+    // torlódó kivezető vonalakkal. A két végpontot mindig megtartjuk, hogy a
+    // lánc ne rövidüljön meg.
+    const merged = [0];
+    for (const t of [...breaks].sort((a, b) => a - b)) {
+      if (t <= 0 || t >= len) continue;
+      if (t - merged[merged.length - 1] < MIN_BREAK_GAP) continue;
+      if (len - t < MIN_BREAK_GAP) continue;
+      merged.push(t);
+    }
+    merged.push(len);
+
+    const points = merged.map(t => ({ x: p1.x + dir.x * t, y: p1.y + dir.y * t, t }));
 
     chains.push({ p1, p2, dir, normal, len, points });
   }

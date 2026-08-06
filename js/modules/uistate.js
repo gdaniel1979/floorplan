@@ -8,6 +8,7 @@ export const ui = {
   selectedFurnitureId: null,
   thickness: 10,         // cm – az új falak vastagsága
   wallGrow: 'auto',      // a kijelölt fal hosszának módosításakor melyik vég mozduljon ('auto'|'a'|'b')
+  wallAlign: 'center',   // vastagság-váltáskor melyik falsík maradjon ('center'|'plus'|'minus')
   orthoOnly: false,      // csak derékszög (90/180/270°) engedélyezett rajzoláskor
   doorFlipHinge: false,  // az új ajtók zsanérja alapból melyik oldalon legyen
   doorFlipSide: false,   // az új ajtók nyitási iránya alapból melyik oldalra mutasson
