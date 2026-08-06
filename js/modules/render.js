@@ -10,7 +10,7 @@ import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
 import { objectGeometry, objectHeight } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
-import { rotatedPoint, rotateHandlePoint } from './furniture.js';
+import { rotatedPoint, rotateHandlePoint, isStair } from './furniture.js';
 import { computeRoomSurfaces } from './surfaces.js';
 
 export function renderAll() {
@@ -244,6 +244,13 @@ function furnitureSymbol(item, s) {
     x: item.x - item.w / 2, y: item.y - item.h / 2, width: item.w, height: item.h,
     class: 'furniture-body', 'data-furniture': item.id, 'stroke-width': 1 / s,
   }));
+
+  // a lépcső nem egyszerű téglalap: fokok + járóvonal + irányjelölés
+  if (isStair(item)) {
+    appendStairDetails(g, item, s);
+    return g;
+  }
+
   if (ui.layerVisible.furnitureLabels) {
     const label = el('text', {
       x: item.x, y: item.y, class: 'furniture-label', 'font-size': 11 / s,
@@ -252,6 +259,52 @@ function furnitureSymbol(item, s) {
     g.appendChild(label);
   }
   return g;
+}
+
+// Lépcső-jelölés, ahogy egy alaprajzon szokás: a fokélek a lépcső szélességében,
+// középen a járóvonal, az indulásnál pont, az érkezésnél nyílhegy, mellette
+// FEL/LE felirat. Egykarú (egyenes) lépcső — a kanyarodó/félfordulós változat
+// külön elem lenne.
+function appendStairDetails(g, item, s) {
+  const steps = Math.max(2, item.steps || 10);
+  const x0 = item.x - item.w / 2, x1 = item.x + item.w / 2;
+  const yTop = item.y - item.h / 2, yBot = item.y + item.h / 2;
+  const tread = item.h / steps;
+
+  // fokélek (a két szélső a lépcső kontúrja, azt nem duplázzuk)
+  for (let i = 1; i < steps; i++) {
+    const y = yTop + tread * i;
+    g.appendChild(el('line', {
+      x1: x0, y1: y, x2: x1, y2: y, class: 'stair-tread', 'stroke-width': 1 / s,
+    }));
+  }
+
+  // járóvonal: lentről fel halad, ha FEL, különben fordítva
+  const up = item.dir !== 'down';
+  const from = { x: item.x, y: up ? yBot - tread / 2 : yTop + tread / 2 };
+  const to = { x: item.x, y: up ? yTop + tread / 2 : yBot - tread / 2 };
+  g.appendChild(el('line', {
+    x1: from.x, y1: from.y, x2: to.x, y2: to.y, class: 'stair-walkline', 'stroke-width': 1.2 / s,
+  }));
+  g.appendChild(el('circle', { cx: from.x, cy: from.y, r: 3 / s, class: 'stair-start' }));
+
+  // nyílhegy az érkezésnél
+  const dy = up ? 1 : -1;              // a nyíl "hátrafelé" mutató iránya
+  const a = 6 / s, b = 4 / s;
+  g.appendChild(el('path', {
+    d: `M ${to.x} ${to.y} L ${to.x - b} ${to.y + a * dy} L ${to.x + b} ${to.y + a * dy} Z`,
+    class: 'stair-arrow',
+  }));
+
+  if (ui.layerVisible.furnitureLabels) {
+    const t = el('text', {
+      x: item.x + item.w / 2 - 6 / s, y: (yTop + yBot) / 2,
+      class: 'stair-label', 'font-size': 10 / s,
+      'text-anchor': 'end', 'dominant-baseline': 'middle',
+    });
+    t.textContent = `${up ? 'FEL' : 'LE'} ${steps} db`;
+    g.appendChild(t);
+  }
 }
 
 // a kijelölt bútor panelje (típus + méret + forgatás) — csak kijelölt
@@ -273,6 +326,19 @@ function updateFurnitureOptionsPanel(plan) {
 
   const rotInput = document.getElementById('furniture-sel-rotation');
   if (rotInput && document.activeElement !== rotInput) rotInput.value = item.rotation;
+
+  // a lépcső-vezérlők csak lépcsőnél látszanak
+  const stair = isStair(item);
+  const stepsRow = document.getElementById('stair-steps-row');
+  const dirRow = document.getElementById('stair-dir-row');
+  if (stepsRow) stepsRow.hidden = !stair;
+  if (dirRow) dirRow.hidden = !stair;
+  if (stair) {
+    const stepsInput = document.getElementById('stair-steps');
+    const dirSelect = document.getElementById('stair-dir');
+    if (stepsInput && document.activeElement !== stepsInput) stepsInput.value = item.steps ?? 10;
+    if (dirSelect && document.activeElement !== dirSelect) dirSelect.value = item.dir === 'down' ? 'down' : 'up';
+  }
 }
 
 // az ajtó-/ablak-opciók az oldalsávban csak akkor látszanak, ha az adott

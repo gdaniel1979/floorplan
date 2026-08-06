@@ -48,6 +48,11 @@ export function catalogItem(category, type) {
   return (CATALOG[category] || []).find(d => d.type === type) || null;
 }
 
+// lépcső: alapértelmezett fokmélység, ebből jön ki a fokok száma a hosszból
+export const STAIR_TREAD = 28; // cm
+
+export function isStair(item) { return item?.type === 'lepcso'; }
+
 export function addFurniture(plan, category, type, p) {
   const def = catalogItem(category, type);
   if (!def) return null;
@@ -55,9 +60,27 @@ export function addFurniture(plan, category, type, p) {
     id: newId(), category, type, label: def.label,
     x: round1(p.x), y: round1(p.y), w: def.w, h: def.h, rotation: 0,
   };
+  if (type === 'lepcso') {
+    item.steps = Math.max(2, Math.round(def.h / STAIR_TREAD));
+    item.dir = 'up'; // 'up' = FEL, 'down' = LE
+  }
   plan.furniture.push(item);
   notify();
   return item;
+}
+
+export function setStairSteps(plan, item, steps) {
+  if (!isStair(item)) return;
+  const n = Math.round(steps);
+  if (!(n >= 2) || n > 60) return;
+  item.steps = n;
+  notify();
+}
+
+export function setStairDir(plan, item, dir) {
+  if (!isStair(item)) return;
+  item.dir = dir === 'down' ? 'down' : 'up';
+  notify();
 }
 
 export function deleteFurniture(plan, id) {

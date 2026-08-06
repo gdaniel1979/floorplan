@@ -72,8 +72,8 @@ const HINTS = {
   room: 'Kattints egy falakkal körbezárt terület belsejébe egy helyiség létrehozásához. V: kijelölés.',
   door: 'Kattints egy egyenes falra az ajtó elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
   window: 'Kattints egy egyenes falra az ablak elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
-  furniture: 'Kattints a rajzra a kiválasztott tárgy elhelyezéséhez. Utólag húzható; méret/forgatás a Kijelölt tárgy panelen. V: kijelölés.',
-  select: 'Kattints falra, helyiségre, nyílászáróra vagy bútorra a kijelöléshez; húzd a fogantyúkat. A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
+  furniture: 'Kattints a rajzra a kiválasztott tárgy elhelyezéséhez. Utólag húzható (Shift: 1 cm-es lépték) vagy nyilakkal tologatható. Méret/forgatás a Kijelölt tárgy panelen. V: kijelölés.',
+  select: 'Kattints falra, helyiségre, nyílászáróra vagy bútorra a kijelöléshez; húzd a fogantyúkat. Húzás közben Shift: 1 cm-es lépték; kijelölt tárgyat a nyilak is tolnak (Shift: 10 cm). A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
 };
 
 export function setTool(tool) {
@@ -350,6 +350,24 @@ function onKey(e) {
     ui.selectedFurnitureId = null;
     return;
   }
+  // Nyilakkal a kijelölt tárgy finoman tologatható: 1 cm-enként, Shift-tel
+  // 10 cm-enként. A húzás a 10 cm-es rácshoz igazít, ami elhelyezéshez jó, de
+  // pár centis igazításhoz durva.
+  const NUDGE = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (NUDGE[e.key] && ui.selectedFurnitureId) {
+    const plan = getPlan();
+    const item = plan?.furniture.find(f => f.id === ui.selectedFurnitureId);
+    if (item) {
+      e.preventDefault(); // ne görgessen az oldal
+      const step = e.shiftKey ? GRID_MINOR : 1;
+      const [ux, uy] = NUDGE[e.key];
+      const before = snapshot();
+      moveFurniture(plan, item, item.x + ux * step, item.y + uy * step);
+      checkpoint(before);
+    }
+    return;
+  }
+
   if (e.key === 'v' || e.key === 'V') setTool('select');
   if (e.key === 'f' || e.key === 'F') setTool('wall');
   if (e.key === 'r' || e.key === 'R') setTool('room');
@@ -723,8 +741,10 @@ function applyDrag(plan, p, shiftKey) {
     if (drag.kind === 'objCenter') moveObjectAlongWall(plan, obj, offset);
     else resizeObjectEdge(plan, obj, drag.kind === 'objP1' ? 'p1' : 'p2', offset);
   } else if (drag.kind === 'furniture') {
-    const dx = Math.round((p.x - drag.start.x) / GRID_MINOR) * GRID_MINOR;
-    const dy = Math.round((p.y - drag.start.y) / GRID_MINOR) * GRID_MINOR;
+    // Shift: finom (1 cm-es) lépték a szokásos 10 cm helyett
+    const step = shiftKey ? 1 : GRID_MINOR;
+    const dx = Math.round((p.x - drag.start.x) / step) * step;
+    const dy = Math.round((p.y - drag.start.y) / step) * step;
     moveFurniture(plan, drag.item, drag.orig.x + dx, drag.orig.y + dy);
   } else if (drag.kind === 'furnitureRotate') {
     const item = drag.item;

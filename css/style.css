@@ -697,6 +697,40 @@ input.rename {
   cursor: pointer;
 }
 
+/* --- lépcső-jelölés: fokélek, járóvonal, indulópont, érkező nyíl --- */
+
+.stair-tread {
+  stroke: #4d5867;
+  fill: none;
+  pointer-events: none;
+}
+
+.stair-walkline {
+  stroke: #2c3542;
+  fill: none;
+  pointer-events: none;
+}
+
+.stair-start {
+  fill: #2c3542;
+  pointer-events: none;
+}
+
+.stair-arrow {
+  fill: #2c3542;
+  pointer-events: none;
+}
+
+.stair-label {
+  fill: #2c3542;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
 .furniture-label {
   fill: #4d5867;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
