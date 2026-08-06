@@ -148,6 +148,12 @@ function initDoorControls() {
     applyToSelectedObject('door', o => { o.flipSide = ui.doorFlipSide; });
   });
 
+  const leafCountSelect = document.getElementById('door-leaf-count');
+  leafCountSelect?.addEventListener('change', () => {
+    ui.doorLeafCount = leafCountSelect.value === '2' ? 2 : 1;
+    applyToSelectedObject('door', o => { o.leafCount = ui.doorLeafCount; });
+  });
+
   withLeafSelect.addEventListener('change', () => {
     ui.doorWithLeaf = withLeafSelect.value === 'leaf';
     applyToSelectedObject('door', o => { o.withLeaf = ui.doorWithLeaf; });

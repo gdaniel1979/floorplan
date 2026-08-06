@@ -8,7 +8,7 @@ import { getPlan, nodeById, wallById, wallLengthOf, wallInteriorLengthOf, endDed
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
-import { objectGeometry, objectHeight } from './objects.js';
+import { objectGeometry, objectHeight, openingClearances } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
 import { rotatedPoint, rotateHandlePoint, isStair } from './furniture.js';
 import { computeRoomSurfaces } from './surfaces.js';
@@ -87,6 +87,11 @@ export function renderAll() {
       overlay.appendChild(handle(geo.p1.x, geo.p1.y, s, 'objP1', { 'data-object': obj.id }));
       overlay.appendChild(handle(geo.p2.x, geo.p2.y, s, 'objP2', { 'data-object': obj.id }));
       overlay.appendChild(handle(geo.center.x, geo.center.y, s, 'objCenter', { 'data-object': obj.id }, true));
+
+      // távolság a fal két sarkától a nyílás széléig — húzás közben is frissül,
+      // és a számra kattintva pontos érték írható be
+      const oc = openingCornerDims(plan, obj, geo, s);
+      if (oc) overlay.appendChild(oc);
     }
   }
 
@@ -364,6 +369,11 @@ function syncDoorControls(door) {
   const flipSideBtn = document.getElementById('door-flip-side');
   const withLeaf = door ? door.withLeaf !== false : ui.doorWithLeaf;
   if (withLeafSelect && document.activeElement !== withLeafSelect) withLeafSelect.value = withLeaf ? 'leaf' : 'opening';
+
+  const leafCountSelect = document.getElementById('door-leaf-count');
+  if (leafCountSelect && document.activeElement !== leafCountSelect) {
+    leafCountSelect.value = String(door ? (door.leafCount === 2 ? 2 : 1) : ui.doorLeafCount);
+  }
   if (flipHingeBtn) flipHingeBtn.classList.toggle('active', door ? !!door.flipHinge : ui.doorFlipHinge);
   if (flipSideBtn) flipSideBtn.classList.toggle('active', door ? !!door.flipSide : ui.doorFlipSide);
   syncSizeInput('door-width', door ? Math.round(door.width) : ui.doorWidth);
@@ -534,18 +544,18 @@ function objectSymbol(obj, geo, s) {
       d: openingRevealPathD(geo), class: 'door-reveal', 'data-object': obj.id, 'stroke-width': 1 / s,
     }));
     if (obj.withLeaf !== false) {
-      const hinge = obj.flipHinge ? geo.p2 : geo.p1;
-      const other = obj.flipHinge ? geo.p1 : geo.p2;
       const side = obj.flipSide ? -1 : 1;
-      const leafEnd = { x: hinge.x + geo.normal.x * obj.width * side, y: hinge.y + geo.normal.y * obj.width * side };
-      g.appendChild(el('line', {
-        x1: hinge.x, y1: hinge.y, x2: leafEnd.x, y2: leafEnd.y,
-        class: 'door-leaf', 'data-object': obj.id, 'stroke-width': 1.5 / s,
-      }));
-      g.appendChild(el('path', {
-        d: quarterArcPath(hinge, leafEnd, other, obj.width),
-        class: 'door-arc', 'data-object': obj.id, 'stroke-width': 1 / s,
-      }));
+      if (obj.leafCount === 2) {
+        // kétszárnyú: a két lap a nyílás két végén zsanérozódik, mindkettő a
+        // fél szélességgel, ugyanarra az oldalra nyílva — a zsanér-oldal
+        // váltása itt nem értelmezett, a kép szimmetrikus
+        appendDoorLeaf(g, obj, geo, geo.p1, geo.center, obj.width / 2, side, s);
+        appendDoorLeaf(g, obj, geo, geo.p2, geo.center, obj.width / 2, side, s);
+      } else {
+        const hinge = obj.flipHinge ? geo.p2 : geo.p1;
+        const other = obj.flipHinge ? geo.p1 : geo.p2;
+        appendDoorLeaf(g, obj, geo, hinge, other, obj.width, side, s);
+      }
     }
   } else if (obj.kind === 'window') {
     const half = geo.wall.thickness / 2;
@@ -601,6 +611,24 @@ function sashDiagonal(pStart, pEnd, n, half, side) {
 }
 
 // negyedköríves útvonal `from`-ból `to`-ba, `center` körül, a rövidebb (90°-os) irányban
+// egy ajtólap: a zsanértól a nyitási oldal felé kifordítva, plusz a nyitási ív
+// (`toward` csak az ív körüljárási irányát adja meg — a zsanérhoz képest hova
+// esik a nyílás másik vége)
+function appendDoorLeaf(g, obj, geo, hinge, toward, width, side, s) {
+  const leafEnd = {
+    x: hinge.x + geo.normal.x * width * side,
+    y: hinge.y + geo.normal.y * width * side,
+  };
+  g.appendChild(el('line', {
+    x1: hinge.x, y1: hinge.y, x2: leafEnd.x, y2: leafEnd.y,
+    class: 'door-leaf', 'data-object': obj.id, 'stroke-width': 1.5 / s,
+  }));
+  g.appendChild(el('path', {
+    d: quarterArcPath(hinge, leafEnd, toward, width),
+    class: 'door-arc', 'data-object': obj.id, 'stroke-width': 1 / s,
+  }));
+}
+
 function quarterArcPath(center, from, to, radius) {
   const cross = (from.x - center.x) * (to.y - center.y) - (from.y - center.y) * (to.x - center.x);
   const sweep = cross > 0 ? 1 : 0;
@@ -908,6 +936,60 @@ function clearanceDim(c, side, sideKey, w, s) {
   label.textContent = formatMeters(side.clear);
   g.appendChild(label);
   return g;
+}
+
+// --- kijelölt nyílászáró: távolság a fal két sarkától ---
+//
+// Amit egy tervrajzon mérnek: a sarok és a nyílás széle közti szabad hossz.
+// A számok kattinthatók, mert a húzás 10 cm-es rácshoz igazít, ami pontos
+// pozicionáláshoz durva.
+function openingCornerDims(plan, obj, geo, s) {
+  const c = openingClearances(plan, obj);
+  if (!c) return null;
+
+  const g = el('g', { class: 'opening-dims' });
+  const { dir } = c;
+  const n = geo.normal;
+  const off = geo.wall.thickness / 2 + 22 / s; // a falon kívülre, a méretlánc alá
+
+  // a sarkok (a falsíktól mért kezdőpontok) és a nyílás két széle a fal mentén
+  const at = t => ({
+    x: c.a.x + dir.x * t + n.x * off,
+    y: c.a.y + dir.y * t + n.y * off,
+  });
+  const near = obj.offset - obj.width / 2, far = obj.offset + obj.width / 2;
+
+  for (const [key, t0, t1, val] of [
+    ['fromStart', c.startCut, near, c.fromStart],
+    ['fromEnd', far, c.len - c.endCut, c.fromEnd],
+  ]) {
+    if (val < 1) continue; // a saroknál végződő nyílásnál nincs mit kiírni
+    const p0 = at(t0), p1 = at(t1);
+    g.appendChild(el('line', {
+      x1: p0.x, y1: p0.y, x2: p1.x, y2: p1.y,
+      class: 'opening-dim-line', 'stroke-width': 1.2 / s,
+    }));
+    for (const p of [p0, p1]) {
+      g.appendChild(el('line', {
+        x1: p.x - n.x * 4 / s, y1: p.y - n.y * 4 / s,
+        x2: p.x + n.x * 4 / s, y2: p.y + n.y * 4 / s,
+        class: 'opening-dim-tick', 'stroke-width': 1.2 / s,
+      }));
+    }
+    let deg = Math.atan2(dir.y, dir.x) * 180 / Math.PI;
+    if (deg > 90 || deg <= -90) deg += 180;
+    const mid = G.mid(p0, p1);
+    const label = el('text', {
+      x: mid.x, y: mid.y,
+      class: 'opening-dim-label', 'font-size': 11 / s, 'stroke-width': 3 / s,
+      'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      'data-object': obj.id, 'data-corner-side': key,
+      transform: `rotate(${deg} ${mid.x} ${mid.y})`,
+    });
+    label.textContent = Math.round(val);
+    g.appendChild(label);
+  }
+  return g.childNodes.length ? g : null;
 }
 
 // --- nyílászáró-méretjelölés (90/210) ---

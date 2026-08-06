@@ -829,6 +829,22 @@ input.rename {
   pointer-events: none;
 }
 
+.opening-dim-line,
+.opening-dim-tick {
+  stroke: #d2691e;
+  fill: none;
+  pointer-events: none;
+}
+
+.opening-dim-label {
+  fill: #b3560f;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #ffffff;
+  cursor: text;   /* kattintva pontos érték írható be */
+}
+
 .clearance-label {
   fill: #b3560f;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;

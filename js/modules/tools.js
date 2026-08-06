@@ -11,7 +11,7 @@ import { snapshot, checkpoint } from './history.js';
 import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom } from './rooms.js';
-import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall } from './objects.js';
+import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall, openingClearances, setOpeningClearance } from './objects.js';
 import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint } from './furniture.js';
 import { showToast } from './toast.js';
 import { repairWallNetwork } from './wallrepair.js';
@@ -166,6 +166,12 @@ function onDown(e) {
   // a szabad-táv szám: pontos érték beírható, ha a húzási lépték nem elég finom
   if (t.classList?.contains('clearance-label')) {
     openClearanceEditor(t.dataset.wall, t.dataset.clearSide, e.clientX, e.clientY);
+    return;
+  }
+
+  // a nyílászáró saroktól mért távolsága — szintén beírható
+  if (t.classList?.contains('opening-dim-label')) {
+    openCornerEditor(t.dataset.object, t.dataset.cornerSide, e.clientX, e.clientY);
     return;
   }
 
@@ -798,6 +804,22 @@ function openClearanceEditor(wallId, sideKey, clientX, clientY) {
     setWallClearance(plan, w, sideKey, v);
     repairWallNetwork(plan);
     notify();
+    checkpoint(before);
+  });
+}
+
+// a nyílászáró saroktól mért távolságának szerkesztése: a nyílás a fal mentén
+// úgy csúszik, hogy az adott saroktól pont a beírt méret maradjon
+function openCornerEditor(objectId, which, clientX, clientY) {
+  closeEditor();
+  const plan = getPlan();
+  const obj = plan?.objects.find(o => o.id === objectId);
+  const c = obj && openingClearances(plan, obj);
+  if (!c) return;
+
+  openValueEditor(Math.round(which === 'fromEnd' ? c.fromEnd : c.fromStart), clientX, clientY, v => {
+    const before = snapshot();
+    setOpeningClearance(plan, obj, which, v);
     checkpoint(before);
   });
 }

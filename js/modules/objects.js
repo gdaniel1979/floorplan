@@ -3,7 +3,7 @@
 // "offset" (az a-csomóponttól mért távolság, cm) írja le a nyílás közepét.
 
 import { newId, notify } from './state.js';
-import { nodeById, wallById, wallLengthOf } from './plan.js';
+import { nodeById, wallById, wallLengthOf, endDeduction } from './plan.js';
 import * as G from './geometry.js';
 
 export const DEFAULT_WIDTH = { door: 90, window: 120 };
@@ -31,6 +31,7 @@ export function addObject(plan, wallId, kind, offset, defaults = {}) {
     obj.flipHinge = !!defaults.flipHinge;
     obj.flipSide = !!defaults.flipSide;
     obj.withLeaf = defaults.withLeaf !== false;
+    obj.leafCount = defaults.leafCount === 2 ? 2 : 1;
   } else if (kind === 'window') {
     obj.sashCount = defaults.sashCount === 2 ? 2 : 1;
     obj.flipSide = !!defaults.flipSide;
@@ -100,6 +101,44 @@ export function objectGeometry(plan, obj) {
   const p1 = { x: center.x - dir.x * half, y: center.y - dir.y * half };
   const p2 = { x: center.x + dir.x * half, y: center.y + dir.y * half };
   return { wall: w, a, b, dir, normal: G.normal(a, b), center, p1, p2 };
+}
+
+// --- távolság a saroktól ---
+//
+// Amit egy tervrajzon mérnek: a helyiség SARKÁTÓL a nyílás széléig. A fal
+// végpontjai a tengelyen ülnek, ezért mindkét végén levonjuk az oda csatlakozó
+// fal félvastagságát (endDeduction) — így a szám a valódi, falsíktól falsíkig
+// mért távolság, ugyanúgy, ahogy a fal belmérete is.
+export function openingClearances(plan, obj) {
+  const w = wallById(plan, obj.wallId);
+  if (!w || w.bulge) return null;
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b) return null;
+
+  const len = wallLengthOf(plan, w);
+  const startCut = endDeduction(plan, w, w.a);
+  const endCut = endDeduction(plan, w, w.b);
+  const half = obj.width / 2;
+
+  return {
+    wall: w, a, b, len, startCut, endCut,
+    dir: G.unit(a, b),
+    // a nyílás széle a saroktól (a fal a-vége felől), illetve a másik saroktól
+    fromStart: obj.offset - half - startCut,
+    fromEnd: len - obj.offset - half - endCut,
+  };
+}
+
+// a nyílás eltolása úgy, hogy a megadott saroktól pont `value` maradjon
+export function setOpeningClearance(plan, obj, which, value) {
+  const c = openingClearances(plan, obj);
+  if (!c || !(value >= 0)) return;
+  const half = obj.width / 2;
+  const offset = which === 'fromEnd'
+    ? c.len - c.endCut - value - half
+    : c.startCut + value + half;
+  obj.offset = clampOffset(offset, obj.width, c.len);
+  notify();
 }
 
 // a kattintott ponthoz legközelebbi "offset" egy egyenes falon (a-tól mérve)

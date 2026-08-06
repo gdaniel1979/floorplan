@@ -12,6 +12,7 @@ export const ui = {
   doorFlipHinge: false,  // az új ajtók zsanérja alapból melyik oldalon legyen
   doorFlipSide: false,   // az új ajtók nyitási iránya alapból melyik oldalra mutasson
   doorWithLeaf: true,    // az új ajtók alapból ajtólappal jöjjenek-e létre (vagy csak nyílás)
+  doorLeafCount: 1,      // az új ajtók alapból 1 vagy 2 szárnyúak legyenek
   windowSashCount: 1,    // az új ablakok alapból 1 vagy 2 szárnyúak legyenek
   windowFlipSide: false, // az új ablakok nyitási iránya alapból melyik oldalra mutasson
   doorWidth: 90,         // cm – az új ajtók szélessége
