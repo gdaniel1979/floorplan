@@ -778,7 +778,31 @@ function clearanceLabels(plan, w, s) {
   for (const key of ['neg', 'pos']) {
     if (c[key]) g.appendChild(clearanceDim(c, c[key], key, w, s));
   }
+  // Maga a fal vastagsága is bekerül a sorba, hogy a három szám együtt kiadja
+  // a teljes belméretet (pl. 3,35 + 0,10 + 4,65 = 8,10). Enélkül a két oldal
+  // összege 10 cm-rel kevesebbnek látszott a helyiség-szélességnél, és úgy
+  // tűnt, mintha a válaszfal kimaradna a lakás szélességéből.
+  const thickAt = c.neg || c.pos;
+  if (thickAt) g.appendChild(wallThicknessLabel(c, thickAt, w, s));
   return g;
+}
+
+// a fal saját vastagsága, a mérővonal mellé írva
+function wallThicknessLabel(c, side, w, s) {
+  const { a, dir } = c;
+  const base = { x: a.x + dir.x * side.overlapAt, y: a.y + dir.y * side.overlapAt };
+  const x = base.x + dir.x * 13 / s, y = base.y + dir.y * 13 / s;
+
+  let deg = Math.atan2(dir.y, dir.x) * 180 / Math.PI + 90;
+  if (deg > 90 || deg <= -90) deg += 180;
+
+  const t = el('text', {
+    x, y, class: 'clearance-thickness', 'font-size': 10 / s, 'stroke-width': 3 / s,
+    'text-anchor': 'middle', 'dominant-baseline': 'middle',
+    transform: `rotate(${deg} ${x} ${y})`,
+  });
+  t.textContent = formatMeters(w.thickness);
+  return t;
 }
 
 // egy oldal mérővonala: a fal síkjától a szomszéd fal síkjáig, a számmal

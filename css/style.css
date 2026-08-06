@@ -784,6 +784,17 @@ input.rename {
   pointer-events: none;
 }
 
+/* a fal saját vastagsága a szabad-táv számok között — halványabb, mert nem
+   szerkeszthető, csak azért van ott, hogy a három szám kiadja a belméretet */
+.clearance-thickness {
+  fill: #b3560f;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  paint-order: stroke;
+  stroke: #ffffff;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
 .clearance-label {
   fill: #b3560f;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
