@@ -3,12 +3,12 @@
 // kijelölés és fogantyúk. Minden változáskor (állapot, nézet, eszköz) teljes
 // újrarajzolás.
 
-import { el, getContent, getOverlay, getScale } from './canvas.js';
-import { getPlan, nodeById, wallById, wallLengthOf, throughPartner } from './plan.js';
+import { el, getContent, getOverlay, getScale, setGridVisible, setOriginVisible } from './canvas.js';
+import { getPlan, nodeById, wallById, wallLengthOf, wallInteriorLengthOf, endDeductionAt, throughPartner } from './plan.js';
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
-import { objectGeometry } from './objects.js';
+import { objectGeometry, objectHeight } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
 import { rotatedPoint, rotateHandlePoint } from './furniture.js';
 import { computeRoomSurfaces } from './surfaces.js';
@@ -18,6 +18,9 @@ export function renderAll() {
   const overlay = getOverlay();
   content.innerHTML = '';
   overlay.innerHTML = '';
+
+  setGridVisible(ui.layerVisible.grid);
+  setOriginVisible(ui.layerVisible.origin);
 
   const plan = getPlan();
   if (!plan) return;
@@ -69,11 +72,13 @@ export function renderAll() {
     else appendWallHit(content, a, b, w, s);
   }
 
-  // nyílászárók (ajtó/ablak) — mindig láthatók, a fal-réteg része
+  // nyílászárók (ajtó/ablak) — mindig láthatók, a fal-réteg része; a
+  // méretjelölésük (szélesség/magasság) viszont külön réteg
   for (const obj of plan.objects) {
     const geo = objectGeometry(plan, obj);
     if (!geo) continue;
     content.appendChild(objectSymbol(obj, geo, s));
+    if (ui.layerVisible.openingSizes) overlay.appendChild(openingSizeLabel(plan, obj, geo, s));
     if (obj.id === ui.selectedObjectId) {
       overlay.appendChild(el('line', {
         x1: geo.p1.x, y1: geo.p1.y, x2: geo.p2.x, y2: geo.p2.y,
@@ -130,25 +135,30 @@ export function renderAll() {
   // vizuálisan egyenesen folytatódó fal-szakaszokat egy közös címkével látjuk
   // el (különben minden szakasz saját, apró hossz-számot írna ki egymás alá)
   const chains = getDimensionChains(plan);
-  for (const chain of chains) renderDimensionChain(overlay, chain, s);
+  if (ui.layerVisible.dimChains) {
+    for (const chain of chains) renderDimensionChain(overlay, chain, s);
+  }
 
-  for (const run of buildInteriorWallRuns(plan)) {
-    if (run.walls.some(w => wallOnChains(plan, w, chains))) continue; // ezt már a méretlánc jelzi
-    if (run.walls.length === 1) {
-      const w = run.walls[0];
-      const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
-      if (!a || !b) continue;
-      overlay.appendChild(lengthLabel(plan, w, a, b, s));
-    } else {
-      overlay.appendChild(wallRunLengthLabel(plan, run, s));
+  if (ui.layerVisible.wallLengths) {
+    for (const run of buildInteriorWallRuns(plan)) {
+      if (run.walls.some(w => wallOnChains(plan, w, chains))) continue; // ezt már a méretlánc jelzi
+      if (run.walls.length === 1) {
+        const w = run.walls[0];
+        const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+        if (!a || !b) continue;
+        overlay.appendChild(lengthLabel(plan, w, a, b, s));
+      } else {
+        overlay.appendChild(wallRunLengthLabel(plan, run, s));
+      }
     }
   }
 
-  // helyiség-címkék: név + terület a súlypontban
+  // helyiség-címke-blokk: név / terület / belmagasság, soronként külön réteg
   for (const room of plan.rooms) {
     const trace = roomTraces.get(room.id);
     if (!trace) continue;
-    overlay.appendChild(roomLabel(room, trace, s));
+    const label = roomLabel(room, trace, s);
+    if (label) overlay.appendChild(label);
   }
 
   updateDoorWindowPanel(plan);
@@ -215,11 +225,13 @@ function furnitureSymbol(item, s) {
     x: item.x - item.w / 2, y: item.y - item.h / 2, width: item.w, height: item.h,
     class: 'furniture-body', 'data-furniture': item.id, 'stroke-width': 1 / s,
   }));
-  const label = el('text', {
-    x: item.x, y: item.y, class: 'furniture-label', 'font-size': 11 / s,
-  });
-  label.textContent = item.label;
-  g.appendChild(label);
+  if (ui.layerVisible.furnitureLabels) {
+    const label = el('text', {
+      x: item.x, y: item.y, class: 'furniture-label', 'font-size': 11 / s,
+    });
+    label.textContent = item.label;
+    g.appendChild(label);
+  }
   return g;
 }
 
@@ -269,6 +281,16 @@ function syncDoorControls(door) {
   if (withLeafSelect && document.activeElement !== withLeafSelect) withLeafSelect.value = withLeaf ? 'leaf' : 'opening';
   if (flipHingeBtn) flipHingeBtn.classList.toggle('active', door ? !!door.flipHinge : ui.doorFlipHinge);
   if (flipSideBtn) flipSideBtn.classList.toggle('active', door ? !!door.flipSide : ui.doorFlipSide);
+  syncSizeInput('door-width', door ? Math.round(door.width) : ui.doorWidth);
+  syncSizeInput('door-height', door ? Math.round(objectHeight(door)) : ui.doorHeight);
+}
+
+// a méret-mező a kijelölt nyílászáró tényleges méretét mutatja (húzás közben
+// is frissül), kijelölés nélkül az új nyílászárók alapértékét — a fókuszban
+// lévő mezőt sosem írja felül, hogy gépelés közben ne ugorjon
+function syncSizeInput(id, value) {
+  const input = document.getElementById(id);
+  if (input && document.activeElement !== input) input.value = value;
 }
 
 function syncWindowControls(win) {
@@ -277,6 +299,8 @@ function syncWindowControls(win) {
   const sashCount = win ? win.sashCount : ui.windowSashCount;
   if (sashSelect && document.activeElement !== sashSelect) sashSelect.value = String(sashCount);
   if (flipSideBtn) flipSideBtn.classList.toggle('active', win ? !!win.flipSide : ui.windowFlipSide);
+  syncSizeInput('window-width', win ? Math.round(win.width) : ui.windowWidth);
+  syncSizeInput('window-height', win ? Math.round(objectHeight(win)) : ui.windowHeight);
 }
 
 // a kijelölt fal panelje (hossz + vastagság) — csak kijelölt falnál látszik,
@@ -290,8 +314,10 @@ function updateWallOptionsPanel(plan) {
 
   const lengthInput = document.getElementById('wall-sel-length');
   if (lengthInput && document.activeElement !== lengthInput) {
-    lengthInput.value = Math.round(wallLengthOf(plan, w));
+    lengthInput.value = Math.round(wallInteriorLengthOf(plan, w));
   }
+
+  updateGrowSelect(plan, w);
 
   const thickSelect = document.getElementById('wall-sel-thickness');
   const customRow = document.getElementById('wall-sel-custom-row');
@@ -302,6 +328,37 @@ function updateWallOptionsPanel(plan) {
     customRow.hidden = preset;
     if (!preset) customInput.value = w.thickness;
   }
+}
+
+// A "Merre nőjön" választó feliratai a fal tényleges állásából jönnek (fel/le,
+// balra/jobbra), mert a belső "a"/"b" végpont-elnevezés a rajzolás sorrendjéből
+// adódik, és a felhasználónak semmit nem mondana. Új fal kijelölésekor
+// visszaáll automatikusra.
+let growSelectWallId = null;
+
+function updateGrowSelect(plan, w) {
+  const sel = document.getElementById('wall-sel-grow');
+  if (!sel) return;
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b) return;
+
+  if (growSelectWallId !== w.id) {
+    growSelectWallId = w.id;
+    ui.wallGrow = 'auto';
+    sel.value = 'auto';
+  }
+
+  const [optA, optB] = [sel.querySelector('option[value="a"]'), sel.querySelector('option[value="b"]')];
+  // az "a" opció azt jelenti: az `a` végpont mozdul el — vagyis a fal abba az
+  // irányba nő, amerre az `a` vég van a `b`-hez képest
+  optA.textContent = directionLabel(b, a);
+  optB.textContent = directionLabel(a, b);
+}
+
+function directionLabel(from, to) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'Jobbra' : 'Balra';
+  return dy >= 0 ? 'Lefelé' : 'Felfelé';
 }
 
 // --- fal-alak: egyetlen kontúrkövetett, sraffozott sokszög ---
@@ -386,6 +443,11 @@ function objectSymbol(obj, geo, s) {
   }));
 
   if (obj.kind === 'door') {
+    // a nyílás kávája: a fal testéből kivágott rész kitöltése (a mintarajzokon
+    // a nyílászárók okker/narancs kiemelést kapnak a fal sraffozásán belül)
+    g.appendChild(el('path', {
+      d: openingRevealPathD(geo), class: 'door-reveal', 'data-object': obj.id, 'stroke-width': 1 / s,
+    }));
     if (obj.withLeaf !== false) {
       const hinge = obj.flipHinge ? geo.p2 : geo.p1;
       const other = obj.flipHinge ? geo.p1 : geo.p2;
@@ -403,13 +465,8 @@ function objectSymbol(obj, geo, s) {
   } else if (obj.kind === 'window') {
     const half = geo.wall.thickness / 2;
     const n = geo.normal;
-    const c1 = { x: geo.p1.x + n.x * half, y: geo.p1.y + n.y * half };
-    const c2 = { x: geo.p2.x + n.x * half, y: geo.p2.y + n.y * half };
-    const c3 = { x: geo.p2.x - n.x * half, y: geo.p2.y - n.y * half };
-    const c4 = { x: geo.p1.x - n.x * half, y: geo.p1.y - n.y * half };
     g.appendChild(el('path', {
-      d: `M ${c1.x} ${c1.y} L ${c2.x} ${c2.y} L ${c3.x} ${c3.y} L ${c4.x} ${c4.y} Z`,
-      class: 'window-fill', 'data-object': obj.id, 'stroke-width': 1.5 / s,
+      d: openingRevealPathD(geo), class: 'window-fill', 'data-object': obj.id, 'stroke-width': 1.5 / s,
     }));
 
     const side = obj.flipSide ? -1 : 1;
@@ -436,6 +493,18 @@ function objectSymbol(obj, geo, s) {
     }
   }
   return g;
+}
+
+// a nyílás téglalapja a fal teljes vastagságában (a fal testéből ezt vágja ki
+// az openingCutoutPathD, itt a kitöltéséhez rajzoljuk újra)
+function openingRevealPathD(geo) {
+  const half = geo.wall.thickness / 2;
+  const n = geo.normal;
+  const c1 = { x: geo.p1.x + n.x * half, y: geo.p1.y + n.y * half };
+  const c2 = { x: geo.p2.x + n.x * half, y: geo.p2.y + n.y * half };
+  const c3 = { x: geo.p2.x - n.x * half, y: geo.p2.y - n.y * half };
+  const c4 = { x: geo.p1.x - n.x * half, y: geo.p1.y - n.y * half };
+  return `M ${c1.x} ${c1.y} L ${c2.x} ${c2.y} L ${c3.x} ${c3.y} L ${c4.x} ${c4.y} Z`;
 }
 
 // egy ablakszárny nyitás-irányát jelző átló: a "zsanér" sarokból (pStart, a
@@ -508,7 +577,14 @@ function buildInteriorWallRuns(plan) {
 // teljes hosszára, a lánc egészének közepén
 function wallRunLengthLabel(plan, run, s) {
   const a = nodeById(plan, run.startId), b = nodeById(plan, run.endId);
-  const totalLen = run.walls.reduce((sum, w) => sum + wallLengthOf(plan, w), 0);
+  // belméret: a lánc teljes tengelyhossza, csökkentve a KÉT VÉGÉN csatlakozó
+  // falakkal — a lánc belsejében lévő csomópontok egyenes folytatások, ott
+  // nincs mit levonni
+  const axisLen = run.walls.reduce((sum, w) => sum + wallLengthOf(plan, w), 0);
+  const dirAB = G.unit(a, b);
+  const totalLen = Math.max(0, axisLen
+    - endDeductionAt(plan, a, dirAB, run.walls[0].id)
+    - endDeductionAt(plan, b, { x: -dirAB.x, y: -dirAB.y }, run.walls[run.walls.length - 1].id));
   const n = G.normal(a, b);
   const mid = G.mid(a, b);
   const off = run.walls[0].thickness / 2 + 10 / s;
@@ -526,14 +602,14 @@ function wallRunLengthLabel(plan, run, s) {
     'dominant-baseline': 'middle',
     transform: `rotate(${deg} ${x} ${y})`,
   });
-  t.textContent = `${Math.round(totalLen)} cm`;
+  t.textContent = formatMeters(totalLen);
   return t;
 }
 
 // a fal hossz-címkéje: a fal közepén, a falra fektetve, kis eltartással
 // (csak azokra a falakra, amik NEM szerepelnek a láncolt külső méretezésben)
 function lengthLabel(plan, w, a, b, s) {
-  const len = wallLengthOf(plan, w);
+  const len = wallInteriorLengthOf(plan, w); // belméret, ahogy a bevitel is
   const n = G.normal(a, b);
   const bulge = w.bulge || 0;
   // ívnél a domború oldalra, egyenesnél a normál oldalra kerül a felirat
@@ -556,7 +632,9 @@ function lengthLabel(plan, w, a, b, s) {
     'dominant-baseline': 'middle',
     transform: `rotate(${deg} ${x} ${y})`,
   });
-  t.textContent = `${Math.round(len)} cm`;
+  // a rajzon minden hossz méterben (mint a méretláncokon); a címkére kattintva
+  // nyíló szerkesztő továbbra is cm-ben dolgozik, azt saját "cm" felirat jelzi
+  t.textContent = formatMeters(len);
   return t;
 }
 
@@ -612,7 +690,7 @@ function renderDimLine(overlay, chain, offset, points, s, isTotal) {
   for (let i = 0; i < points.length - 1; i++) {
     const a = off(points[i]), b = off(points[i + 1]);
     const mid = G.mid(a, b);
-    const segLen = Math.round(isTotal ? chain.len : points[i + 1].t - points[i].t);
+    const segLen = isTotal ? chain.len : points[i + 1].t - points[i].t;
     const t = el('text', {
       x: mid.x, y: mid.y,
       class: isTotal ? 'dim-label dim-label-total' : 'dim-label',
@@ -620,29 +698,124 @@ function renderDimLine(overlay, chain, offset, points, s, isTotal) {
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
       transform: `rotate(${deg} ${mid.x} ${mid.y})`,
     });
-    t.textContent = `${segLen} cm`;
+    // a mintarajzokhoz igazodva a méretlánc méterben, tizedesvesszővel
+    t.textContent = formatMeters(segLen);
     overlay.appendChild(t);
   }
 }
 
-// helyiség-címke: név + terület, a súlypontra középre igazítva
+// helyiség-címke-blokk az építészeti tervrajzok mintájára: NÉV / terület /
+// B.m., egymás alá tördelve, a súlypontra függőlegesen is középre igazítva.
+// A sorok külön-külön kapcsolhatók a Rétegek panelen; a blokk magassága a
+// ténylegesen megjelenő sorokhoz igazodik, hogy sose csússzon el a középről.
 function roomLabel(room, trace, s) {
+  const lines = [];
+  if (ui.layerVisible.roomName) {
+    lines.push({ text: room.name, cls: 'room-name', size: 13 });
+  }
+  if (ui.layerVisible.roomArea) {
+    lines.push({ text: `${trace.areaM2.toFixed(2).replace('.', ',')} m²`, cls: 'room-area', size: 11 });
+  }
+  if (ui.layerVisible.roomHeight && room.height > 0) {
+    lines.push({ text: `B.m.: ${formatMeters(room.height)} m`, cls: 'room-height', size: 10 });
+  }
+  if (!lines.length) return null;
+
   const g = el('g', { class: 'room-label' });
+  const gap = 4 / s; // cm – sorköz a betűméreten felül
+  const heights = lines.map(l => l.size / s);
+  const total = heights.reduce((sum, h) => sum + h, 0) + gap * (lines.length - 1);
 
-  const name = el('text', {
-    x: trace.centroid.x, y: trace.centroid.y - 8 / s,
-    class: 'room-name', 'data-room': room.id,
-    'font-size': 13 / s, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+  let y = trace.centroid.y - total / 2;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    y += heights[i] / 2;
+    const t = el('text', {
+      x: trace.centroid.x, y,
+      class: `room-text ${l.cls}`, 'data-room': room.id,
+      'font-size': heights[i], 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+    });
+    t.textContent = l.text;
+    g.appendChild(t);
+    y += heights[i] / 2 + gap;
+  }
+  return g;
+}
+
+// cm -> "2,85" (magyar tizedesvessző, 2 tizedes, a felesleges nullák nélkül)
+function formatMeters(cm) {
+  return (cm / 100).toFixed(2).replace('.', ',');
+}
+
+// --- nyílászáró-méretjelölés (90/210) ---
+
+const OPENING_TAG_GAP = 18; // cm – a méretjelölés távolsága a fal síkjától (a falhossz-címke elé)
+
+// egyszerű sugár-metszéses pont-a-sokszögben teszt
+function pointInPolygon(poly, p) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.y > p.y) !== (b.y > p.y) &&
+        p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// melyik oldalra kerüljön a méretjelölés: külső falnál KÍVÜLRE (ahogy a
+// mintarajzokon), belső falnál a nyitás-iránnyal ellentétes oldalra, hogy ne
+// fedje az ajtóívet
+function openingTagSide(plan, obj, geo) {
+  const outer = exteriorSilhouette(plan);
+  if (outer) {
+    const probe = geo.wall.thickness / 2 + 15;
+    const plus = { x: geo.center.x + geo.normal.x * probe, y: geo.center.y + geo.normal.y * probe };
+    const minus = { x: geo.center.x - geo.normal.x * probe, y: geo.center.y - geo.normal.y * probe };
+    const plusIn = pointInPolygon(outer, plus);
+    if (plusIn !== pointInPolygon(outer, minus)) return plusIn ? -1 : 1;
+  }
+  return obj.kind === 'door' && !obj.flipSide ? -1 : 1;
+}
+
+// a nyílászáró szélesség/magasság jelölése törtvonalas alakban, a falra
+// fektetve, a fal egyik síkján kívül — a mintarajzokon látható módon:
+// felül a szélesség cm-ben, alatta vízszintes vonallal a magasság m-ben
+function openingSizeLabel(plan, obj, geo, s) {
+  const n = geo.normal;
+  const half = geo.wall.thickness / 2;
+  const side = openingTagSide(plan, obj, geo);
+  const off = half + OPENING_TAG_GAP / s;
+  const cx = geo.center.x + n.x * off * side;
+  const cy = geo.center.y + n.y * off * side;
+
+  let deg = Math.atan2(geo.dir.y, geo.dir.x) * 180 / Math.PI;
+  if (deg > 90 || deg <= -90) deg += 180;
+
+  const g = el('g', {
+    class: 'opening-tag', transform: `rotate(${deg} ${cx} ${cy})`,
   });
-  name.textContent = room.name;
 
-  const area = el('text', {
-    x: trace.centroid.x, y: trace.centroid.y + 9 / s,
-    class: 'room-area', 'data-room': room.id,
-    'font-size': 11 / s, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+  const size = 9 / s;
+  const bar = Math.max(obj.width * 0.42, 16 / s); // a törtvonal fél hossza
+
+  const top = el('text', {
+    x: cx, y: cy - size * 0.62, 'font-size': size,
+    'text-anchor': 'middle', 'dominant-baseline': 'middle',
   });
-  area.textContent = `${trace.areaM2.toFixed(1)} m²`;
+  top.textContent = String(Math.round(obj.width));
 
-  g.append(name, area);
+  const rule = el('line', {
+    x1: cx - bar / 2, y1: cy, x2: cx + bar / 2, y2: cy, 'stroke-width': 0.8 / s,
+  });
+
+  const bottom = el('text', {
+    x: cx, y: cy + size * 0.62, 'font-size': size,
+    'text-anchor': 'middle', 'dominant-baseline': 'middle',
+  });
+  bottom.textContent = formatMeters(objectHeight(obj));
+
+  g.append(top, rule, bottom);
   return g;
 }

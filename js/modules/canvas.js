@@ -165,12 +165,14 @@ function buildGrid() {
   major.appendChild(majorFill);
   major.appendChild(majorPath);
 
-  // fal-sraffozás: 45°-os átlós vonalkázás, ahogy egy építészeti tervrajzon
+  // fal-sraffozás: sűrű, vékony 45°-os vonalkázás halványszürke alapon —
+  // ahogy a nyomtatott építészeti tervrajzokon (a korábbi ritka, vastag
+  // vonalkázás nagy zoomon foltos, kis zoomon szinte feketének látszott)
   const hatch = el('pattern', {
-    id: 'wall-hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)',
+    id: 'wall-hatch', width: 4, height: 4, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)',
   });
-  hatch.appendChild(el('rect', { width: 6, height: 6, fill: '#ffffff' }));
-  hatch.appendChild(el('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: '#1a1a1a', 'stroke-width': 1.3 }));
+  hatch.appendChild(el('rect', { width: 4, height: 4, fill: '#f1f0ec' }));
+  hatch.appendChild(el('line', { x1: 0, y1: 0, x2: 0, y2: 4, stroke: '#5a5a5a', 'stroke-width': 0.9 }));
   defs.appendChild(hatch);
 
   defs.appendChild(minor);
@@ -212,6 +214,16 @@ function onWheel(e) {
 function onMouseMove(e) {
   const p = clientToWorld(e.clientX, e.clientY);
   coordsEl.textContent = `x: ${Math.round(p.x)} cm · y: ${Math.round(p.y)} cm`;
+}
+
+// a rács és az origó-kereszt a Rétegek panelről kapcsolható (segédelemek —
+// nem részei a rajznak, ezért nem a render.js kezeli őket)
+export function setGridVisible(visible) {
+  if (gridRect) gridRect.style.display = visible ? '' : 'none';
+}
+
+export function setOriginVisible(visible) {
+  if (originGroup) originGroup.style.display = visible ? '' : 'none';
 }
 
 export function el(name, attrs = {}) {

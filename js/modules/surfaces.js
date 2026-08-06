@@ -4,13 +4,13 @@
 // nyomvonalába esik (ugyanaz a rács, amit a rooms.js már kiszámolt) — ha
 // egy oldal egy adott helyiségbe esik, annak a fal-szakasznak a hossza ×
 // a helyiség belmagassága adja a bruttó felületet, amiből a rajta lévő
-// nyílászárók (szélesség × alapértelmezett magasság, ld. objects.js
-// DEFAULT_HEIGHT — a magasság egyelőre nem szerkeszthető) területét vonjuk le.
+// nyílászárók (szélesség × magasság, ld. objects.js objectHeight) területét
+// vonjuk le.
 
 import { nodeById } from './plan.js';
 import * as G from './geometry.js';
 import { getRoomTrace } from './rooms.js';
-import { DEFAULT_HEIGHT as OPENING_HEIGHT } from './objects.js';
+import { objectHeight } from './objects.js';
 
 const SAMPLE_OFFSET = 5; // cm – ennyivel a fal síkján túl mintavételezünk, hogy biztosan a helyiség belsejében legyen
 
@@ -48,7 +48,7 @@ export function computeRoomSurfaces(plan) {
 
     const openingsAreaM2 = plan.objects
       .filter(o => o.wallId === w.id)
-      .reduce((sum, o) => sum + o.width * (o.height || OPENING_HEIGHT[o.kind] || 0), 0) / 10000;
+      .reduce((sum, o) => sum + o.width * objectHeight(o), 0) / 10000;
 
     for (const side of sides) {
       for (const room of plan.rooms) {

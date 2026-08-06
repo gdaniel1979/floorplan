@@ -7,8 +7,8 @@ import { nodeById, wallById, wallLengthOf } from './plan.js';
 import * as G from './geometry.js';
 
 export const DEFAULT_WIDTH = { door: 90, window: 120 };
-// a nyílászáró magassága (cm) — jelenleg nem szerkeszthető, csak a felület-
-// számításhoz (surfaces.js) kell, a nyílászáró rajzát/geometriáját nem érinti
+// a nyílászáró magassága (cm): a méretjelölésen (90/210) és a felület-
+// számításban (surfaces.js) jelenik meg, a rajz geometriáját nem érinti
 export const DEFAULT_HEIGHT = { door: 210, window: 150 };
 const MIN_MARGIN = 5; // cm – legalább ennyi maradjon a fal végétől a nyílásig
 
@@ -23,9 +23,10 @@ function clampOffset(offset, width, wallLen) {
 export function addObject(plan, wallId, kind, offset, defaults = {}) {
   const w = wallById(plan, wallId);
   if (!w || w.bulge) return null; // íves falba egyelőre nem
-  const width = DEFAULT_WIDTH[kind];
+  const width = defaults.width > 0 ? defaults.width : DEFAULT_WIDTH[kind];
+  const height = defaults.height > 0 ? defaults.height : DEFAULT_HEIGHT[kind];
   const len = wallLengthOf(plan, w);
-  const obj = { id: newId(), kind, wallId, width, offset: clampOffset(offset, width, len) };
+  const obj = { id: newId(), kind, wallId, width, height, offset: clampOffset(offset, width, len) };
   if (kind === 'door') {
     obj.flipHinge = !!defaults.flipHinge;
     obj.flipSide = !!defaults.flipSide;
@@ -57,6 +58,18 @@ export function resizeObject(plan, obj, width) {
   obj.width = width;
   obj.offset = clampOffset(obj.offset, width, wallLengthOf(plan, w));
   notify();
+}
+
+// a nyílászáró magassága: csak a méretjelölést és a felület-becslést érinti
+export function setObjectHeight(plan, obj, height) {
+  if (!obj || !(height > 0)) return;
+  obj.height = height;
+  notify();
+}
+
+// egy nyílászáró magassága, a régi (magasság nélkül mentett) tervekre is
+export function objectHeight(obj) {
+  return obj.height > 0 ? obj.height : DEFAULT_HEIGHT[obj.kind] || 0;
 }
 
 // az egyik szél (p1 vagy p2) húzása: a MÁSIK szél helyben marad, a szélesség

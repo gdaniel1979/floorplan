@@ -53,7 +53,7 @@ function tryFlood(plan, seed, radius, isFinal) {
     if (!wallNearBox(plan, wall, minX, minY, cols * cell, rows * cell)) continue;
     R.rasterizeWall(blocked, cols, rows, minX, minY, cell, plan, wall);
   }
-  R.blockNodeSquares(blocked, cols, rows, minX, minY, cell, plan);
+  R.blockNodeCorners(blocked, cols, rows, minX, minY, cell, plan);
 
   const sx = Math.floor((seed.x - minX) / cell), sy = Math.floor((seed.y - minY) / cell);
   if (sx < 0 || sy < 0 || sx >= cols || sy >= rows || blocked[sy * cols + sx]) return null; // a pont falon van
@@ -79,8 +79,8 @@ function tryFlood(plan, seed, radius, isFinal) {
   if (touchedEdge) return isFinal ? null : 'expand'; // vagy tényleg nyitott, vagy csak a helyi rács volt kicsi
 
   const contourCells = R.traceContourFromScan(filled, cols, rows);
-  const poly = R.simplifyPolygon(contourCells.map(([gx, gy]) =>
-    R.cellToFacePoint(gx, gy, filled, cols, rows, minX, minY, cell)));
+  const poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
+    R.cellToFacePoint(gx, gy, filled, cols, rows, minX, minY, cell))), cell);
   if (poly.length < 3) return null;
 
   const { area, cx, cy } = R.polygonAreaAndCentroid(poly);

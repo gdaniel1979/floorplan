@@ -2,11 +2,13 @@
 
 import { ui } from './uistate.js';
 import { setTool } from './tools.js';
-import { getPlan, wallById, setWallLength } from './plan.js';
+import { getPlan, wallById, setWallInteriorLength } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
-import { CATALOG, setFurnitureSize, setFurnitureRotation, clearFurniture } from './furniture.js';
+import { CATALOG, LAYER_LABELS, setFurnitureSize, setFurnitureRotation, clearFurniture } from './furniture.js';
 import { setRoomHeight } from './rooms.js';
+import { LAYER_GROUPS, setLayer, setGroup, groupState } from './layers.js';
+import { resizeObject, setObjectHeight } from './objects.js';
 
 export function initToolbar() {
   for (const b of document.querySelectorAll('.tool-btn[data-tool]')) {
@@ -83,9 +85,12 @@ function initWallOptionsControls() {
     if (!w || !(v > 0)) return;
     const plan = getPlan();
     const before = snapshot();
-    setWallLength(plan, w, v);
+    setWallInteriorLength(plan, w, v, ui.wallGrow); // a mező belméretet mutat
     checkpoint(before);
   });
+
+  const growSelect = document.getElementById('wall-sel-grow');
+  growSelect?.addEventListener('change', () => { ui.wallGrow = growSelect.value; });
 
   function applyThickness() {
     const w = selectedWall();
@@ -147,6 +152,26 @@ function initDoorControls() {
     ui.doorWithLeaf = withLeafSelect.value === 'leaf';
     applyToSelectedObject('door', o => { o.withLeaf = ui.doorWithLeaf; });
   });
+
+  initSizeInput('door-width', 'door', 'doorWidth', (plan, o, v) => resizeObject(plan, o, v));
+  initSizeInput('door-height', 'door', 'doorHeight', (plan, o, v) => setObjectHeight(plan, o, v));
+}
+
+// egy nyílászáró méret-mezője: a kijelölt nyílászárót módosítja (ha van), és
+// egyben az új nyílászárók alapértékét is beállítja
+function initSizeInput(inputId, kind, uiKey, apply) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.addEventListener('change', () => {
+    const v = parseFloat(input.value);
+    if (!(v > 0)) return;
+    ui[uiKey] = v;
+    const obj = selectedOfKind(kind);
+    if (!obj) return;
+    const before = snapshot();
+    apply(getPlan(), obj, v);
+    checkpoint(before);
+  });
 }
 
 function initWindowControls() {
@@ -164,38 +189,142 @@ function initWindowControls() {
     flipSideBtn.classList.toggle('active', ui.windowFlipSide);
     applyToSelectedObject('window', o => { o.flipSide = ui.windowFlipSide; });
   });
+
+  initSizeInput('window-width', 'window', 'windowWidth', (plan, o, v) => resizeObject(plan, o, v));
+  initSizeInput('window-height', 'window', 'windowHeight', (plan, o, v) => setObjectHeight(plan, o, v));
+}
+
+// Rétegek panel: fő csoportonként egy összevont kapcsoló, alatta behúzva a
+// részletes alkapcsolók. A fő kapcsoló mindent visz a csoportban, és
+// félig-bepipált (indeterminate) állapotot mutat, ha az alrétegek vegyesek.
+// A csoportok egymástól függetlenül csukhatók össze (a nyílra vagy a névre
+// kattintva) — a becsukás csak a lista megjelenítését érinti, a rétegek
+// láthatóságát nem.
+function buildLayerTree() {
+  const tree = document.getElementById('layer-tree');
+  if (!tree) return;
+
+  for (const group of LAYER_GROUPS) {
+    const wrap = document.createElement('div');
+    wrap.className = 'layer-group';
+
+    // a fejléc nem <label>, hogy a névre kattintás összecsukjon és NE a
+    // jelölőnégyzetet kapcsolja — a négyzetre kattintás natívan működik
+    const head = document.createElement('div');
+    head.className = 'layer-group-head';
+    const caret = document.createElement('span');
+    caret.className = 'caret';
+    caret.textContent = '▾';
+    const groupBox = document.createElement('input');
+    groupBox.type = 'checkbox';
+    const groupName = document.createElement('span');
+    groupName.className = 'name';
+    groupName.textContent = group.label;
+    head.append(caret, groupBox, groupName);
+
+    const children = document.createElement('ul');
+    children.className = 'layer-children';
+    const childBoxes = [];
+
+    for (const child of group.children) {
+      const li = document.createElement('li');
+      const label = document.createElement('label');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = !!ui.layerVisible[child.key];
+      box.addEventListener('change', () => {
+        setLayer(child.key, box.checked);
+        syncGroupBox();
+      });
+      const text = document.createElement('span');
+      text.textContent = child.label;
+      label.append(box, text);
+      li.appendChild(label);
+      children.appendChild(li);
+      childBoxes.push(box);
+    }
+
+    function syncGroupBox() {
+      const state = groupState(group);
+      groupBox.checked = state !== 'none';
+      groupBox.indeterminate = state === 'some';
+    }
+
+    groupBox.addEventListener('change', () => {
+      // vegyes állapotból az első kattintás mindent bekapcsol
+      const visible = groupBox.checked;
+      setGroup(group.key, visible);
+      for (const box of childBoxes) box.checked = visible;
+      syncGroupBox();
+    });
+
+    // összecsukás: minden csoport önállóan, egymást nem befolyásolva
+    function toggleCollapsed() {
+      const collapsed = !children.hidden;
+      children.hidden = collapsed;
+      caret.textContent = collapsed ? '▸' : '▾';
+      wrap.classList.toggle('collapsed', collapsed);
+    }
+    caret.addEventListener('click', toggleCollapsed);
+    groupName.addEventListener('click', toggleCollapsed);
+
+    syncGroupBox();
+    wrap.append(head, children);
+    tree.appendChild(wrap);
+  }
 }
 
 // bútor-paletta: kategória-választás → tárgy-választás → elhelyezési mód,
 // plusz a kijelölt tárgy méret/forgatás mezői (render.js szinkronizálja az
 // értéküket a kijelölés váltásakor/húzás közben — updateFurnitureOptionsPanel)
 function initFurnitureControls() {
-  const itemsRow = document.getElementById('furniture-items');
+  const tree = document.getElementById('furniture-tree');
 
-  function renderItemButtons(category) {
-    itemsRow.innerHTML = '';
-    for (const def of CATALOG[category] || []) {
-      const b = document.createElement('button');
-      b.className = 'tool-btn';
-      b.textContent = def.label;
-      b.title = `${def.w}×${def.h} cm`;
-      b.addEventListener('click', () => {
+  for (const category of Object.keys(CATALOG)) {
+    const group = document.createElement('div');
+    group.className = 'furn-cat-group';
+
+    const row = document.createElement('div');
+    row.className = 'furn-cat-row';
+    const caret = document.createElement('span');
+    caret.className = 'caret';
+    caret.textContent = '▸';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = LAYER_LABELS[category] || category;
+    row.append(caret, name);
+
+    const items = document.createElement('ul');
+    items.className = 'furn-items';
+    items.hidden = true;
+
+    for (const def of CATALOG[category]) {
+      const li = document.createElement('li');
+      li.className = 'furn-item';
+      const label = document.createElement('span');
+      label.className = 'name';
+      label.textContent = def.label;
+      const dims = document.createElement('span');
+      dims.className = 'muted';
+      dims.textContent = `${def.w}×${def.h}`;
+      li.append(label, dims);
+      li.addEventListener('click', () => {
         ui.furnitureCategory = category;
         ui.furniturePendingType = def.type;
         setTool('furniture');
-        for (const bb of itemsRow.querySelectorAll('.tool-btn')) bb.classList.toggle('active', bb === b);
+        for (const other of tree.querySelectorAll('.furn-item')) other.classList.toggle('active', other === li);
       });
-      itemsRow.appendChild(b);
+      items.appendChild(li);
     }
-  }
 
-  for (const catBtn of document.querySelectorAll('.tool-btn[data-furniture-cat]')) {
-    catBtn.addEventListener('click', () => {
-      for (const b of document.querySelectorAll('.tool-btn[data-furniture-cat]')) {
-        b.classList.toggle('active', b === catBtn);
-      }
-      renderItemButtons(catBtn.dataset.furnitureCat);
+    row.addEventListener('click', () => {
+      const willOpen = items.hidden;
+      items.hidden = !willOpen;
+      caret.textContent = willOpen ? '▾' : '▸';
     });
+
+    group.append(row, items);
+    tree.appendChild(group);
   }
 
   function selectedFurniture() {
@@ -234,13 +363,7 @@ function initFurnitureControls() {
     checkpoint(before);
   });
 
-  // Rétegek: az egyes bútor-kategóriák ki-/bekapcsolása (a falak/nyílászárók mindig látszanak)
-  for (const cb of document.querySelectorAll('input[data-layer]')) {
-    cb.addEventListener('change', () => {
-      ui.layerVisible[cb.dataset.layer] = cb.checked;
-      notify();
-    });
-  }
+  buildLayerTree();
 
   // véletlenül felhalmozott bútor-tárgyak gyors eltávolítása (pl. ha az
   // elhelyezés-mód ragadva maradt, és sok tárgy rakódott le egymás után)

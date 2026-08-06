@@ -3,7 +3,7 @@
 // helyiség-kijelölés kattintással.
 
 import { getSvg, getOverlay, getScale, clientToWorld, beginPan, el } from './canvas.js';
-import { getPlan, findNodeNear, nodeById, wallById, addNode, addWall, deleteWall, mergeNodes, cleanupOrphanNodes, setWallLength, wallLengthOf, round1 } from './plan.js';
+import { getPlan, findNodeNear, nodeById, wallById, addNode, addWall, deleteWall, mergeNodes, cleanupOrphanNodes, setWallInteriorLength, wallInteriorLengthOf, endDeductionAt, round1 } from './plan.js';
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { notify, activeLevel } from './state.js';
@@ -90,7 +90,7 @@ export function setTool(tool) {
     b.classList.toggle('active', b.dataset.tool === tool);
   }
   if (tool !== 'furniture') {
-    for (const b of document.querySelectorAll('#furniture-items .tool-btn')) b.classList.remove('active');
+    for (const b of document.querySelectorAll('#furniture-tree .furn-item')) b.classList.remove('active');
   }
   const hint = document.getElementById('tool-hint');
   if (hint) hint.textContent = HINTS[tool] || '';
@@ -163,7 +163,8 @@ function onDown(e) {
     return;
   }
 
-  if (t.classList?.contains('room-name') || t.classList?.contains('room-area')) {
+  // a helyiség-címke bármelyik sora (név / terület / belmagasság) nyitja a szerkesztőt
+  if (t.classList?.contains('room-text')) {
     openRoomEditor(t.dataset.room, e.clientX, e.clientY);
     return;
   }
@@ -198,12 +199,16 @@ function onDown(e) {
     return;
   }
 
+  // helyiség belseje: a kattintás kijelöl, a HÚZÁS viszont a nézetet mozgatja
+  // (a helyiséget magát úgysem lehet külön elmozgatni, így nincs mit elrontani)
+  // — enélkül az alaprajz közepébe kapaszkodva nem lehetett pásztázni
   if (t.dataset?.room) {
     ui.selectedRoomId = t.dataset.room;
     ui.selectedWallId = null;
     ui.selectedObjectId = null;
     ui.selectedFurnitureId = null;
     renderAll();
+    beginPan(e);
     return;
   }
 
@@ -244,8 +249,14 @@ function placeObject(plan, kind, target, p) {
 
   const before = snapshot();
   const defaults = kind === 'door'
-    ? { flipHinge: ui.doorFlipHinge, flipSide: ui.doorFlipSide, withLeaf: ui.doorWithLeaf }
-    : { sashCount: ui.windowSashCount, flipSide: ui.windowFlipSide };
+    ? {
+        flipHinge: ui.doorFlipHinge, flipSide: ui.doorFlipSide, withLeaf: ui.doorWithLeaf,
+        width: ui.doorWidth, height: ui.doorHeight,
+      }
+    : {
+        sashCount: ui.windowSashCount, flipSide: ui.windowFlipSide,
+        width: ui.windowWidth, height: ui.windowHeight,
+      };
   const obj = addObject(plan, wallId, kind, offsetOnWall(plan, w, p), defaults);
   if (!obj) { showToast('Nem sikerült elhelyezni a nyílászárót.'); return; }
   checkpoint(before);
@@ -346,7 +357,16 @@ function placePoint(plan, p) {
   if (!draw) {
     const near = findNodeNear(plan, p, tol);
     const before = snapshot();
-    const node = near || addNode(plan, G.snapToGrid(p, GRID_MINOR));
+    let node = near;
+    if (!node) {
+      // meglévő fal testére kattintva a csomópont a fal TENGELYÉRE ugorjon, és
+      // rögtön ketté is vágjuk ott — enélkül a kiindulópont nem kapcsolódna a
+      // falhoz, így a belméret-levonás is rosszul indulna (a lánc első
+      // szakasza a fal fél vastagságával hosszabb lenne a kelleténél)
+      const onWall = wallLineNear(plan, p, ui.thickness);
+      node = addNode(plan, onWall ? onWall.point : G.snapToGrid(p, GRID_MINOR));
+      if (onWall) repairWallNetwork(plan);
+    }
     checkpoint(before);
     draw = { lastNodeId: node.id, mouse: p, typed: '' };
     notify();
@@ -367,25 +387,140 @@ function computeEnd(plan, mouse, typedLen = null) {
   // hogy a lánc pontosan visszazárható legyen a kiindulópontra
   const near = findNodeNear(plan, mouse, tol, draw.lastNodeId);
   if (near && !typedLen) {
-    return { point: { x: near.x, y: near.y }, nodeId: near.id, len: G.dist(last, near) };
+    return withInterior(plan, last, { point: { x: near.x, y: near.y }, nodeId: near.id, len: G.dist(last, near) });
   }
 
   const raw = Math.atan2(mouse.y - last.y, mouse.x - last.x);
   const ang = ui.orthoOnly ? G.snapAngleOrtho(raw) : G.snapAngle(raw);
   const dir = { x: Math.cos(ang), y: Math.sin(ang) };
 
+  // A beírt/rajzolt hossz BELMÉRET, ezért a tengelyhosszhoz hozzáadjuk mindkét
+  // végén a bevágást. Kezdő végen a már ott lévő, nem egyenesen folytatódó fal
+  // félvastagságát; a még SZABAD túlsó végen az épp rajzolt fal félvastagságát
+  // — vagyis azt feltételezve, hogy oda is ilyen fal fog csatlakozni.
+  //
+  // Ez utóbbi nélkül a lánc első szakasza kimaradna a levonásból, a többi nem:
+  // az átellenes oldalak félvastagságnyival eltérnének, és a négyszög nem
+  // záródna derékszögben. A "szabad végen semmit ne vonjon le" változat emiatt
+  // nem tartható — lásd a válaszban a mért számokat.
+  const startCut = cutAt(plan, last, dir);
+  const farCut = ui.thickness / 2;
+
   let len;
   if (typedLen != null) {
-    len = typedLen;
+    len = typedLen + startCut + farCut; // belméret -> tengelyhossz
   } else {
     const proj = Math.max(0, (mouse.x - last.x) * dir.x + (mouse.y - last.y) * dir.y);
-    len = Math.round(proj / GRID_MINOR) * GRID_MINOR; // rácshoz illesztett hossz
+    // a rácshoz a BELMÉRETET illesztjük, hogy kerek belméret jöjjön ki
+    const interior = Math.round(Math.max(0, proj - startCut - farCut) / GRID_MINOR) * GRID_MINOR;
+    len = interior + startCut + farCut;
   }
-  return {
-    point: { x: round1(last.x + dir.x * len), y: round1(last.y + dir.y * len) },
-    nodeId: null,
-    len,
-  };
+  const point = { x: round1(last.x + dir.x * len), y: round1(last.y + dir.y * len) };
+
+  // A KISZÁMÍTOTT végpont közelében lévő csomópontra is illesztünk. Begépelt
+  // hossznál a mutató helye nem mérvadó (a fal a beírt hosszal a snapelt
+  // irányba megy, nem a kurzorig), ezért a fenti, egér-alapú illesztés a lánc
+  // zárásakor nem talált rá a kiinduló csomópontra: a helyére egy vele
+  // egybeeső, de KÜLÖN duplikátum jött létre. A hurok így látszólag zárt volt,
+  // valójában nyitott — ettől lett szakadozott a külső kontúr és a méretlánc.
+  const snapNode = findNodeNear(plan, point, tol, draw.lastNodeId);
+  if (snapNode) {
+    return withInterior(plan, last, { point: { x: snapNode.x, y: snapNode.y }, nodeId: snapNode.id, len: G.dist(last, snapNode) });
+  }
+
+  // Ha a fal egy MÁSIK FAL testébe érne bele, a végpontja annak a tengelyére
+  // ugrik (a rajzolás irányában metszve, hogy a fal egyenes maradjon). Enélkül
+  // eltérő vastagságoknál elvétette a célfal tengelyét — a T-elágazás nem jött
+  // létre, a célfal nem vágódott ketté, és utána egyben, két helyiségnyi
+  // hosszan lehetett csak kijelölni.
+  const onWall = wallLineOnRay(plan, last, dir, point, ui.thickness);
+  if (onWall) {
+    return withInterior(plan, last, { point: onWall.point, nodeId: null, len: G.dist(last, onWall.point) });
+  }
+
+  return withInterior(plan, last, { point, nodeId: null, len });
+}
+
+// mekkora közelségben számít úgy, hogy a két fal összeér (a testük érintkezik),
+// de legalább néhány képernyő-pixelnyi, hogy egérrel is kényelmes legyen
+function snapTol(otherThickness, ownThickness) {
+  return Math.max(otherThickness / 2 + ownThickness / 2, 12 / getScale());
+}
+
+// a ponthoz legközelebbi fal-tengely (merőleges vetülettel), ha elég közel van
+function wallLineNear(plan, p, ownThickness) {
+  let best = null;
+  for (const w of plan.walls) {
+    if (w.bulge) continue;
+    const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+    if (!a || !b) continue;
+    const len = G.dist(a, b);
+    if (len < 1e-6) continue;
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    // a fal MENTÉN a rácshoz igazítunk (a rácspontot vetítjük a tengelyre), a
+    // falra merőlegesen pedig pontosan a tengelyre — így a csatlakozás kerek
+    // helyre kerül, nem oda, ahova épp koppintottunk
+    const gp = G.snapToGrid(p, GRID_MINOR);
+    const t = (gp.x - a.x) * ux + (gp.y - a.y) * uy;
+    if (t < 1 || t > len - 1) continue; // a végeknél a csomópont-illesztés dolgozik
+    const proj = { x: round1(a.x + ux * t), y: round1(a.y + uy * t) };
+    const d = G.dist(p, proj);
+    if (d > snapTol(w.thickness, ownThickness)) continue;
+    if (!best || d < best.d) best = { point: proj, d };
+  }
+  return best;
+}
+
+// a rajzolás sugarát (last-ból dir irányba) melyik fal tengelye metszi a
+// számított végpont közelében — a metszéspontot adja vissza
+function wallLineOnRay(plan, last, dir, point, ownThickness) {
+  let best = null;
+  for (const w of plan.walls) {
+    if (w.bulge) continue;
+    if (w.a === draw.lastNodeId || w.b === draw.lastNodeId) continue; // amiből épp kiindulunk
+    const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+    if (!a || !b) continue;
+    const len = G.dist(a, b);
+    if (len < 1e-6) continue;
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    const cross = dir.x * uy - dir.y * ux;
+    if (Math.abs(cross) < 1e-6) continue; // párhuzamos, nincs metszés
+
+    const s = ((a.x - last.x) * uy - (a.y - last.y) * ux) / cross;
+    if (s <= 1) continue; // hátrafelé vagy nulla hosszú szakasz
+    const ip = { x: round1(last.x + dir.x * s), y: round1(last.y + dir.y * s) };
+
+    const t = (ip.x - a.x) * ux + (ip.y - a.y) * uy;
+    if (t < 1 || t > len - 1) continue; // a fal szakaszán kívül metszené a vonalát
+    const d = G.dist(point, ip);
+    if (d > snapTol(w.thickness, ownThickness)) continue;
+    if (!best || d < best.d) best = { point: ip, d };
+  }
+  return best;
+}
+
+// a szakaszhoz kiszámolja a kiírandó BELMÉRETET is — ugyanazzal a feltevéssel,
+// amivel a hosszt is számoltuk, hogy a lebegő címkén az a szám álljon, amit a
+// felhasználó begépelne (a szabad túlsó véget ilyen vastag falnak vesszük)
+function withInterior(plan, last, end) {
+  if (end.len <= 0) return { ...end, interior: 0 };
+  const dir = { x: (end.point.x - last.x) / end.len, y: (end.point.y - last.y) / end.len };
+  const endNode = end.nodeId ? nodeById(plan, end.nodeId) : null;
+  const endCut = endNode
+    ? cutAt(plan, endNode, { x: -dir.x, y: -dir.y })
+    : ui.thickness / 2;
+  return { ...end, interior: Math.max(0, end.len - cutAt(plan, last, dir) - endCut) };
+}
+
+// Mennyi esik ki a belméretből a fal ezen a végén. Ha a csomópontban már van
+// fal, a valódi bevágás számít (egyenes folytatásnál ez 0). Ha viszont a
+// csomópont még TELJESEN szabad — ilyen a lánc első pontja is —, azt vesszük,
+// hogy oda is az épp rajzolt vastagságú fal fog csatlakozni. Enélkül a lánc
+// első szakasza rövidebb tengelyhosszt kapna, mint a többi, és a négyszög nem
+// záródna derékszögben.
+function cutAt(plan, node, dir) {
+  const hasWall = plan.walls.some(w => w.a === node.id || w.b === node.id);
+  return hasWall ? endDeductionAt(plan, node, dir, null) : ui.thickness / 2;
 }
 
 function commitSegment(plan, end) {
@@ -446,7 +581,7 @@ function updatePreview(e) {
   }
   overlay.appendChild(g);
 
-  refreshFloat(draw.client, wallFloatText(end.len));
+  refreshFloat(draw.client, wallFloatText(end.interior));
 }
 
 function endChain() {
@@ -634,7 +769,7 @@ function openLengthEditor(wallId, clientX, clientY) {
   const input = document.createElement('input');
   input.type = 'number';
   input.min = '1';
-  input.value = Math.round(wallLengthOf(plan, w));
+  input.value = Math.round(wallInteriorLengthOf(plan, w));
   editorEl.appendChild(input);
   editorEl.append(' cm');
   wrap.appendChild(editorEl);
@@ -645,7 +780,7 @@ function openLengthEditor(wallId, clientX, clientY) {
     const v = parseFloat(input.value);
     if (commit && v > 0) {
       const before = snapshot();
-      setWallLength(plan, w, v);
+      setWallInteriorLength(plan, w, v, ui.wallGrow); // a címke belméretet mutat, a bevitel is az
       checkpoint(before);
     }
     editorEl.remove();

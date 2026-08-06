@@ -41,7 +41,7 @@ function buildWallMask(plan) {
 
   const blocked = new Uint8Array(cols * rows);
   for (const w of plan.walls) R.rasterizeWall(blocked, cols, rows, minX, minY, cell, plan, w);
-  R.blockNodeSquares(blocked, cols, rows, minX, minY, cell, plan);
+  R.blockNodeCorners(blocked, cols, rows, minX, minY, cell, plan);
 
   // a margóból ("kívül") kitöltjük a teret — ez egy gyűrű-alakú terület:
   // a rács saját külső pereme és az épület fala közötti rész
@@ -86,8 +86,8 @@ function traceOuterSilhouette(mask) {
   if (startX < 0) return null; // nincs épület (üres alaprajz)
 
   const contourCells = R.traceContour(filled, cols, rows, startX, startY, startBackDir);
-  const poly = R.simplifyPolygon(contourCells.map(([gx, gy]) =>
-    R.cellToFacePoint(gx, gy, filled, cols, rows, minX, minY, cell)));
+  const poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
+    R.cellToFacePoint(gx, gy, filled, cols, rows, minX, minY, cell))), cell);
   return poly.length >= 3 ? poly : null;
 }
 
@@ -99,8 +99,8 @@ function findWallHoles(mask) {
   const rawHoles = R.traceAllHoles(blocked, filled, cols, rows);
   const polys = [];
   for (const { comp, contourCells } of rawHoles) {
-    const poly = R.simplifyPolygon(contourCells.map(([gx, gy]) =>
-      R.cellToFacePoint(gx, gy, comp, cols, rows, minX, minY, cell)));
+    const poly = R.sharpenCorners(R.simplifyPolygon(contourCells.map(([gx, gy]) =>
+      R.cellToFacePoint(gx, gy, comp, cols, rows, minX, minY, cell))), cell);
     if (poly.length >= 3) polys.push(poly);
   }
   return polys;

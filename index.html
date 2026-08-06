@@ -66,6 +66,15 @@
           <input type="number" id="wall-sel-length" min="1" step="1">
         </div>
         <div class="control-row">
+          <label for="wall-sel-grow">Merre nőjön</label>
+          <select id="wall-sel-grow">
+            <option value="auto" selected>Automatikus</option>
+            <option value="a"></option>
+            <option value="b"></option>
+          </select>
+        </div>
+        <p class="hint">A hossz módosításakor a merőleges falak együtt tolódnak, hogy a derékszögek megmaradjanak.</p>
+        <div class="control-row">
           <label for="wall-sel-thickness">Vastagság</label>
           <select id="wall-sel-thickness">
             <option value="30">Főfal – 30 cm</option>
@@ -87,6 +96,14 @@
 
         <div id="door-options" hidden>
           <div class="control-row">
+            <label for="door-width">Szélesség (cm)</label>
+            <input type="number" id="door-width" min="20" max="400" step="1" value="90">
+          </div>
+          <div class="control-row">
+            <label for="door-height">Magasság (cm)</label>
+            <input type="number" id="door-height" min="20" max="400" step="1" value="210">
+          </div>
+          <div class="control-row">
             <label for="door-with-leaf">Ajtó típusa</label>
             <select id="door-with-leaf">
               <option value="leaf" selected>Ajtólappal</option>
@@ -101,6 +118,14 @@
         </div>
 
         <div id="window-options" hidden>
+          <div class="control-row">
+            <label for="window-width">Szélesség (cm)</label>
+            <input type="number" id="window-width" min="20" max="400" step="1" value="120">
+          </div>
+          <div class="control-row">
+            <label for="window-height">Magasság (cm)</label>
+            <input type="number" id="window-height" min="20" max="400" step="1" value="150">
+          </div>
           <div class="control-row">
             <label for="window-sash-count">Ablak típusa</label>
             <select id="window-sash-count">
@@ -133,16 +158,8 @@
       <div class="tab-panel" data-tabpanel="furniture">
         <section class="panel">
           <h2>Bútorok, szaniter, konyha</h2>
-          <div class="tool-row">
-            <button class="tool-btn" data-furniture-cat="szaniter">Szaniter</button>
-            <button class="tool-btn" data-furniture-cat="konyha">Konyha</button>
-          </div>
-          <div class="tool-row">
-            <button class="tool-btn" data-furniture-cat="butor">Bútor</button>
-            <button class="tool-btn" data-furniture-cat="epulet">Épületelem</button>
-          </div>
-          <div id="furniture-items" class="tool-row wrap"></div>
-          <p class="hint">Válassz kategóriát, majd tárgyat, és kattints a rajzra az elhelyezéshez. V: kijelölés.</p>
+          <div id="furniture-tree" class="furn-tree"></div>
+          <p class="hint">Nyisd ki a kategóriát, válassz tárgyat, és kattints a rajzra az elhelyezéshez. V: kijelölés.</p>
           <button id="clear-furniture-btn" class="btn">Összes bútor-tárgy törlése</button>
         </section>
         <section class="panel" id="furniture-options" hidden>
@@ -172,11 +189,8 @@
           <h2>Rétegek</h2>
           <ul class="layer-list">
             <li class="layer fixed">Falak, ajtók, ablakok <span class="muted">(mindig látható)</span></li>
-            <li class="layer"><label><input type="checkbox" data-layer="szaniter" checked> Szaniter</label></li>
-            <li class="layer"><label><input type="checkbox" data-layer="konyha" checked> Konyha</label></li>
-            <li class="layer"><label><input type="checkbox" data-layer="butor" checked> Bútorok</label></li>
-            <li class="layer"><label><input type="checkbox" data-layer="epulet" checked> Épületelemek</label></li>
           </ul>
+          <div id="layer-tree" class="layer-tree"></div>
         </section>
       </div>
 

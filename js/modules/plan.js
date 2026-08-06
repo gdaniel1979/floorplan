@@ -72,13 +72,138 @@ export function wallLengthOf(plan, w) {
 
 // a fal hosszának beállítása: a b végpont csúszik az a felől nézett irányban
 // (ívnél a húr skálázódik, a görbület aránya marad)
-export function setWallLength(plan, w, len) {
+// --- belső (nettó) hosszak ---
+//
+// A csomópontok a falak TENGELYÉN ülnek, a felhasználó viszont belméretben
+// gondolkodik: egy 4 m-es szoba fala legyen 4 m SZABAD hosszú. Ezért a
+// hossz-bevitel és a rajzon látható hossz-címkék is belméretet használnak
+// (a külső, láncolt méretvonalak maradnak külső méretek, ahogy tervrajzon
+// szokás). Levonás csak ott van, ahol tényleg csatlakozik egy MÁSIK fal, ami
+// belevág ebbe a falba: a szabad (nyitott) végen nincs levonás, és az
+// egyenesen továbbfutó (kollineáris) szomszéd sem számít, mert nem keresztezi.
+
+// mennyivel rövidebb a belső hossz a csomópontnál, ha onnan `dir` irányba
+// indul a fal (excludeWallId: maga a vizsgált fal, azt nem nézzük)
+export function endDeductionAt(plan, node, dir, excludeWallId) {
+  if (!node) return 0;
+  let max = 0;
+  for (const o of plan.walls) {
+    if (o.id === excludeWallId) continue;
+    if (o.a !== node.id && o.b !== node.id) continue;
+    const other = nodeById(plan, o.a === node.id ? o.b : o.a);
+    if (!other) continue;
+    const oDir = G.unit(node, other);
+    if (Math.abs(dir.x * oDir.x + dir.y * oDir.y) > 0.999) continue; // egyenes folytatás
+    max = Math.max(max, o.thickness / 2);
+  }
+  return max;
+}
+
+// a fal egyik végén (nodeId) levonandó félvastagság
+export function endDeduction(plan, w, nodeId) {
+  const node = nodeById(plan, nodeId);
+  const far = nodeById(plan, nodeId === w.a ? w.b : w.a);
+  if (!node || !far) return 0;
+  return endDeductionAt(plan, node, G.unit(node, far), w.id);
+}
+
+// a fal belső (nettó) hossza
+export function wallInteriorLengthOf(plan, w) {
+  const len = wallLengthOf(plan, w) - endDeduction(plan, w, w.a) - endDeduction(plan, w, w.b);
+  return Math.max(0, len);
+}
+
+// a belső hossz beállítása: visszaszámoljuk tengelyhosszra, azt állítjuk be
+export function setWallInteriorLength(plan, w, interior, grow = 'auto') {
+  if (!(interior > 0)) return;
+  setWallLength(plan, w, interior + endDeduction(plan, w, w.a) + endDeduction(plan, w, w.b), grow);
+}
+
+// Melyik végpont mozduljon el a hossz módosításakor.
+//   'a' | 'b' — az adott végpont mozog, a másik marad
+//   'auto'    — a kevésbé beépített vég mozog; azonos fokszámnál a rajz
+//               közepétől TÁVOLABBI, hogy az épület kifelé nőjön, és a
+//               belső szerkezet maradjon a helyén
+export function growingEnd(plan, w, grow = 'auto') {
+  if (grow === 'a' || grow === 'b') return grow;
+  const deg = nodeDegrees(plan);
+  const da = deg.get(w.a) || 0, db = deg.get(w.b) || 0;
+  if (da !== db) return da < db ? 'a' : 'b';
+
   const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b || !plan.nodes.length) return 'b';
+  let cx = 0, cy = 0;
+  for (const n of plan.nodes) { cx += n.x; cy += n.y; }
+  cx /= plan.nodes.length; cy /= plan.nodes.length;
+  return G.dist(a, { x: cx, y: cy }) > G.dist(b, { x: cx, y: cy }) ? 'a' : 'b';
+}
+
+// A hossz módosításakor az egyik végpont marad, a másik elmozdul. Az elmozduló
+// végponttal EGYÜTT MOZOGNAK azok a falak, amik MERŐLEGESEK az elmozdulásra:
+// azok csak eltolódnak, nem ferdülnek meg. Enélkül a mozduló sarkon lógó
+// szomszédos falak megdőltek, és a derékszögű szoba trapézzá torzult.
+//
+// Az elmozdulással PÁRHUZAMOS falak nem terjesztik tovább a mozgást, csak
+// megnyúlnak/rövidülnek — így egy téglalap alakú szoba téglalap marad, csak
+// abban az irányban lesz nagyobb.
+//
+// Ferde (se nem párhuzamos, se nem merőleges) szomszédnál nincs mit tenni:
+// az ilyen fal a mozgatástól szükségszerűen elfordul.
+export function setWallLength(plan, w, len, grow = 'auto') {
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b) return;
   const current = G.wallLength(a, b, w.bulge || 0);
   if (!(len > 0) || !(current > 0)) return;
-  const f = len / current;
-  b.x = round1(a.x + (b.x - a.x) * f);
-  b.y = round1(a.y + (b.y - a.y) * f);
+
+  const movingId = growingEnd(plan, w, grow) === 'a' ? w.a : w.b;
+  const moving = nodeById(plan, movingId);
+  const fixed = movingId === w.a ? b : a;
+
+  const dirX = (moving.x - fixed.x) / current, dirY = (moving.y - fixed.y) / current;
+  const delta = len - current;
+  if (Math.abs(delta) < 1e-6) return;
+  const d = { x: dirX * delta, y: dirY * delta };
+  const dLen = Math.hypot(d.x, d.y);
+  const dHat = { x: d.x / dLen, y: d.y / dLen };
+
+  // ívnél nincs mit merevíteni, marad a régi, egyszerű nyújtás
+  if (w.bulge) {
+    moving.x = round1(fixed.x + dirX * len);
+    moving.y = round1(fixed.y + dirY * len);
+    notify();
+    return;
+  }
+
+  // az elmozdulásra merőleges falakon át terjed a mozgás
+  const move = new Set([movingId]);
+  const queue = [movingId];
+  while (queue.length) {
+    const id = queue.pop();
+    const node = nodeById(plan, id);
+    for (const o of plan.walls) {
+      if (o.bulge) continue;
+      if (o.a !== id && o.b !== id) continue;
+      const otherId = o.a === id ? o.b : o.a;
+      if (move.has(otherId)) continue;
+      const other = nodeById(plan, otherId);
+      if (!other) continue;
+      const oLen = G.dist(node, other);
+      if (oLen < 1e-6) continue;
+      const dot = ((other.x - node.x) * dHat.x + (other.y - node.y) * dHat.y) / oLen;
+      if (Math.abs(dot) > 1e-3) continue; // nem merőleges: nem visz tovább
+      move.add(otherId);
+      queue.push(otherId);
+    }
+  }
+  // ha a mozgás visszaérne a rögzített véghez, a merevítés önellentmondó —
+  // ilyenkor inkább csak a végpontot mozgatjuk (a régi viselkedés)
+  if (move.has(fixed.id)) move.clear(), move.add(movingId);
+
+  for (const id of move) {
+    const n = nodeById(plan, id);
+    n.x = round1(n.x + d.x);
+    n.y = round1(n.y + d.y);
+  }
   notify();
 }
 
@@ -114,42 +239,3 @@ export function throughPartner(plan, nodeId, wallId) {
   return null;
 }
 
-// egy csomópontban a falak sarok-kitöltő foltjának oldalhossza (a render.js és
-// a raster.js is ezt használja), vagy null, ha nincs rá szükség. Két,
-// pontosan ellentétes irányú, azonos vastagságú fal ("átmenő" pár, pl. egy
-// T-elágazásnál kettévágott fal) rés nélkül illeszkedik önmagában — csak a
-// valódi sarkoknál (két, egymással szöget bezáró fal vége) kell folt, egy
-// átmenő falra merőlegesen csatlakozó ág esetén a téglalapok már fedés
-// nélkül összeérnek, függetlenül a vastagságuk különbségétől
-export function nodeCornerPatchThickness(plan, nodeId) {
-  const n = nodeById(plan, nodeId);
-  const walls = plan.walls.filter(w => w.a === nodeId || w.b === nodeId);
-  if (!n || walls.length < 2) return null;
-
-  const items = walls.map(w => {
-    const other = nodeById(plan, w.a === nodeId ? w.b : w.a);
-    return { dir: G.unit(n, other), thickness: w.thickness };
-  });
-
-  const used = new Array(items.length).fill(false);
-  const throughDirs = [];
-  for (let i = 0; i < items.length; i++) {
-    if (used[i]) continue;
-    for (let j = i + 1; j < items.length; j++) {
-      if (used[j]) continue;
-      const dot = items[i].dir.x * items[j].dir.x + items[i].dir.y * items[j].dir.y;
-      if (dot < -0.999 && items[i].thickness === items[j].thickness) {
-        used[i] = used[j] = true;
-        throughDirs.push(items[i].dir);
-        break;
-      }
-    }
-  }
-
-  const branches = items.filter((_, i) => !used[i]);
-  if (!branches.length) return null; // tiszta kereszteződés, nincs rés
-  if (throughDirs.length && branches.every(b => throughDirs.some(t => Math.abs(t.x * b.dir.x + t.y * b.dir.y) < 0.01))) {
-    return null; // T-elágazás(ok), mindegyik ág merőleges egy átmenő falra
-  }
-  return Math.max(...walls.map(w => w.thickness));
-}
