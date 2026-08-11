@@ -211,6 +211,23 @@ const SYMBOLS = {
     c.path(`M ${c.X(0)} ${c.Y(1)} L ${c.X(0.5)} ${c.Y(0)}`, { class: 'furn-line furn-dash' });
     c.path(`M ${c.X(1)} ${c.Y(1)} L ${c.X(0.5)} ${c.Y(0)}`, { class: 'furn-line furn-dash' });
   },
+  // egyajtós: a zsanér a bal oldalon, egyetlen nyíló lap (forgatással a
+  // zsanér bármelyik oldalra fordítható)
+  szekreny1(c) {
+    c.rect(0, 0, 1, 1);
+    c.path(`M ${c.X(1)} ${c.Y(1)} L ${c.X(0)} ${c.Y(0)}`, { class: 'furn-line furn-dash' });
+  },
+
+  // Falra szerelt fogas: a hátlap (fal felőli léc) és a kiálló akasztók.
+  // A tárgy mélysége az akasztók kinyúlása, ezért keskeny.
+  fogas(c) {
+    c.rect(0, 0, 1, 0.35);                       // hátlap / léc
+    for (let i = 0; i < 4; i++) {
+      const u = 0.155 + i * 0.23;
+      c.line(u, 0.35, u, 0.78);                  // akasztó szára
+      c.ell(u, 0.85, 0.022, 0.12);               // akasztó gombja
+    }
+  },
 
   // épületelemek
   oszlop(c) {
