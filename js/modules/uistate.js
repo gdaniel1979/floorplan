@@ -12,7 +12,7 @@ export const ui = {
   orthoOnly: false,      // csak derékszög (90/180/270°) engedélyezett rajzoláskor
   doorFlipHinge: false,  // az új ajtók zsanérja alapból melyik oldalon legyen
   doorFlipSide: false,   // az új ajtók nyitási iránya alapból melyik oldalra mutasson
-  doorWithLeaf: true,    // az új ajtók alapból ajtólappal jöjjenek-e létre (vagy csak nyílás)
+  doorType: 'swing',     // az új ajtók fajtája: 'swing' | 'sliding' | 'opening'
   doorLeafCount: 1,      // az új ajtók alapból 1 vagy 2 szárnyúak legyenek
   windowSashCount: 1,    // az új ablakok alapból 1 vagy 2 szárnyúak legyenek
   windowFlipSide: false, // az új ablakok nyitási iránya alapból melyik oldalra mutasson

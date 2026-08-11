@@ -10,7 +10,7 @@ import { notify, activeLevel } from './state.js';
 import { snapshot, checkpoint } from './history.js';
 import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
-import { addRoomAt, renameRoom, recolorRoom, deleteRoom } from './rooms.js';
+import { addRoomAt, renameRoom, recolorRoom, deleteRoom, setRoomHeight } from './rooms.js';
 import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall, openingClearances, setOpeningClearance } from './objects.js';
 import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint } from './furniture.js';
 import { showToast } from './toast.js';
@@ -262,7 +262,7 @@ function placeObject(plan, kind, target, p) {
   const before = snapshot();
   const defaults = kind === 'door'
     ? {
-        flipHinge: ui.doorFlipHinge, flipSide: ui.doorFlipSide, withLeaf: ui.doorWithLeaf,
+        flipHinge: ui.doorFlipHinge, flipSide: ui.doorFlipSide, doorType: ui.doorType,
         width: ui.doorWidth, height: ui.doorHeight,
       }
     : {
@@ -951,6 +951,17 @@ function openRoomEditor(roomId, clientX, clientY) {
   nameInput.type = 'text';
   nameInput.value = room.name;
 
+  // belmagasság a buborékban is: eddig csak a Felületek fülön lehetett állítani,
+  // pedig a rajzon ott a "B.m." sor, és a többi szám (falhossz, saroktáv) is
+  // kattintva szerkeszthető
+  const heightInput = document.createElement('input');
+  heightInput.type = 'number';
+  heightInput.className = 'room-height-input';
+  heightInput.min = '1';
+  heightInput.step = '1';
+  heightInput.value = Math.round(room.height);
+  heightInput.title = 'Belmagasság (cm)';
+
   const colorInput = document.createElement('input');
   colorInput.type = 'color';
   colorInput.value = room.color;
@@ -961,42 +972,56 @@ function openRoomEditor(roomId, clientX, clientY) {
   delBtn.textContent = '×';
   delBtn.title = 'Helyiség törlése';
 
-  editorEl.append(nameInput, colorInput, delBtn);
+  editorEl.append(nameInput, heightInput, colorInput, delBtn);
   wrap.appendChild(editorEl);
   nameInput.focus();
   nameInput.select();
 
+  const box = editorEl;
+  let done = false;
   function finish(commit) {
+    // Az Escape/Enter után a mező blur-je is befutna ide — csak egyszer
+    // zárunk. Enélkül az Escape utáni blur MÉGIS mentett (a beírt értékkel),
+    // és a második hívás a már eltávolított elemen dobott kivételt.
+    if (done) return;
+    done = true;
     if (commit) {
       const v = nameInput.value.trim();
       if (v && v !== room.name) renameRoom(plan, roomId, v);
+      const h = parseFloat(heightInput.value);
+      if (h > 0 && h !== room.height) setRoomHeight(plan, roomId, h);
       if (colorInput.value !== room.color) recolorRoom(plan, roomId, colorInput.value);
       checkpoint(before);
     }
-    editorEl.remove();
-    editorEl = null;
+    box.remove();
+    if (editorEl === box) editorEl = null;
     editorFinish = null;
   }
   editorFinish = finish;
 
-  nameInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') finish(true);
-    else if (e.key === 'Escape') finish(false);
-    e.stopPropagation();
-  });
-  // a szín-választóra váltáskor a fókusz a szerkesztőn belül marad — ne zárjuk be
-  nameInput.addEventListener('blur', e => {
-    if (e.relatedTarget && editorEl.contains(e.relatedTarget)) return;
-    finish(true);
-  });
+  // mindkét szöveges mező ugyanúgy visel: Enter ment, Esc elvet, és a
+  // szerkesztőn BELÜLI fókuszváltás (pl. a szín-választóra) nem zárja be
+  for (const input of [nameInput, heightInput]) {
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') finish(false);
+      e.stopPropagation();
+    });
+    input.addEventListener('blur', e => {
+      if (e.relatedTarget && editorEl.contains(e.relatedTarget)) return;
+      finish(true);
+    });
+  }
   colorInput.addEventListener('click', e => e.stopPropagation());
   delBtn.addEventListener('click', () => {
+    if (done) return;
+    done = true;
     const b = snapshot();
     deleteRoom(plan, roomId);
     checkpoint(b);
     ui.selectedRoomId = null;
-    editorEl.remove();
-    editorEl = null;
+    box.remove();
+    if (editorEl === box) editorEl = null;
     editorFinish = null;
   });
 }

@@ -131,7 +131,7 @@ function applyToSelectedObject(kind, mutate) {
 function initDoorControls() {
   const flipHingeBtn = document.getElementById('door-flip-hinge');
   const flipSideBtn = document.getElementById('door-flip-side');
-  const withLeafSelect = document.getElementById('door-with-leaf');
+  const typeSelect = document.getElementById('door-type');
 
   // minden gomb a KIJELÖLT ajtó tényleges állapotából indul ki (ha van ilyen),
   // nem a esetleg elavult ui.door* alapértékből — így a gomb a valódi
@@ -156,9 +156,9 @@ function initDoorControls() {
     applyToSelectedObject('door', o => { o.leafCount = ui.doorLeafCount; });
   });
 
-  withLeafSelect.addEventListener('change', () => {
-    ui.doorWithLeaf = withLeafSelect.value === 'leaf';
-    applyToSelectedObject('door', o => { o.withLeaf = ui.doorWithLeaf; });
+  typeSelect.addEventListener('change', () => {
+    ui.doorType = typeSelect.value;
+    applyToSelectedObject('door', o => { o.doorType = ui.doorType; });
   });
 
   initSizeInput('door-width', 'door', 'doorWidth', (plan, o, v) => resizeObject(plan, o, v));

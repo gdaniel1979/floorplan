@@ -30,7 +30,7 @@ export function addObject(plan, wallId, kind, offset, defaults = {}) {
   if (kind === 'door') {
     obj.flipHinge = !!defaults.flipHinge;
     obj.flipSide = !!defaults.flipSide;
-    obj.withLeaf = defaults.withLeaf !== false;
+    obj.doorType = defaults.doorType || 'swing';
     obj.leafCount = defaults.leafCount === 2 ? 2 : 1;
   } else if (kind === 'window') {
     obj.sashCount = defaults.sashCount === 2 ? 2 : 1;
@@ -66,6 +66,16 @@ export function setObjectHeight(plan, obj, height) {
   if (!obj || !(height > 0)) return;
   obj.height = height;
   notify();
+}
+
+// Az ajtó fajtája. A régi tervekben csak a withLeaf logikai mező volt
+// (ajtólappal / csak nyílás), ezért abból következtetünk, ha nincs doorType.
+//   'swing'   – nyíló, ajtólappal és nyitási ívvel
+//   'sliding' – tolóajtó: a lap a fal síkja mentén csúszik, nincs ív
+//   'opening' – csak nyílás, lap nélkül
+export function doorType(obj) {
+  if (obj.doorType) return obj.doorType;
+  return obj.withLeaf === false ? 'opening' : 'swing';
 }
 
 // egy nyílászáró magassága, a régi (magasság nélkül mentett) tervekre is

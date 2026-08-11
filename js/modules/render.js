@@ -8,7 +8,7 @@ import { getPlan, nodeById, wallById, wallLengthOf, wallInteriorLengthOf, endDed
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
-import { objectGeometry, objectHeight, openingClearances } from './objects.js';
+import { objectGeometry, objectHeight, openingClearances, doorType } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
 import { rotatedPoint, rotateHandlePoint, isStair } from './furniture.js';
 import { computeRoomSurfaces } from './surfaces.js';
@@ -364,11 +364,11 @@ function updateDoorWindowPanel(plan) {
 }
 
 function syncDoorControls(door) {
-  const withLeafSelect = document.getElementById('door-with-leaf');
+  const typeSelect = document.getElementById('door-type');
   const flipHingeBtn = document.getElementById('door-flip-hinge');
   const flipSideBtn = document.getElementById('door-flip-side');
-  const withLeaf = door ? door.withLeaf !== false : ui.doorWithLeaf;
-  if (withLeafSelect && document.activeElement !== withLeafSelect) withLeafSelect.value = withLeaf ? 'leaf' : 'opening';
+  const kind = door ? doorType(door) : ui.doorType;
+  if (typeSelect && document.activeElement !== typeSelect) typeSelect.value = kind;
 
   const leafCountSelect = document.getElementById('door-leaf-count');
   if (leafCountSelect && document.activeElement !== leafCountSelect) {
@@ -574,7 +574,10 @@ function objectSymbol(obj, geo, s) {
     g.appendChild(el('path', {
       d: openingRevealPathD(geo), class: 'door-reveal', 'data-object': obj.id, 'stroke-width': 1 / s,
     }));
-    if (obj.withLeaf !== false) {
+    const kind = doorType(obj);
+    if (kind === 'sliding') {
+      appendSlidingDoor(g, obj, geo, s);
+    } else if (kind === 'swing') {
       const side = obj.flipSide ? -1 : 1;
       if (obj.leafCount === 2) {
         // kétszárnyú: a két lap a nyílás két végén zsanérozódik, mindkettő a
@@ -642,6 +645,59 @@ function sashDiagonal(pStart, pEnd, n, half, side) {
 }
 
 // negyedköríves útvonal `from`-ból `to`-ba, `center` körül, a rövidebb (90°-os) irányban
+// Tolóajtó: nincs nyitási ív. A lap vékony táblaként a fal SÍKJA MELLETT fut
+// (a "Nyitás iránya" választja meg, melyik oldalon), a nyílást zárt állásban
+// takarva, mellette nyíl mutatja, merre csúszik ("Zsanér oldala" fordítja).
+// Kétszárnyúnál két fél lap csúszik ellenkező irányba.
+const SLIDER_PANEL = 5; // cm – a tolólap vastagsága a rajzon
+
+function appendSlidingDoor(g, obj, geo, s) {
+  const side = obj.flipSide ? -1 : 1;
+  const slide = obj.flipHinge ? -1 : 1;
+  const off = geo.wall.thickness / 2 + SLIDER_PANEL / 2;
+
+  if (obj.leafCount === 2) {
+    appendSliderPanel(g, obj, geo, geo.p1, geo.center, side, off, -1, s);
+    appendSliderPanel(g, obj, geo, geo.center, geo.p2, side, off, 1, s);
+  } else {
+    appendSliderPanel(g, obj, geo, geo.p1, geo.p2, side, off, slide, s);
+  }
+}
+
+// egy tolólap (a-tól b-ig, a fal síkja mellé kitolva) + a csúszás iránya
+function appendSliderPanel(g, obj, geo, a, b, side, off, slide, s) {
+  const n = geo.normal, dir = geo.dir;
+  const h = SLIDER_PANEL / 2;
+  const c = { x: n.x * off * side, y: n.y * off * side };   // eltolás a fal síkja mellé
+  const q = [
+    { x: a.x + c.x + n.x * h * side, y: a.y + c.y + n.y * h * side },
+    { x: b.x + c.x + n.x * h * side, y: b.y + c.y + n.y * h * side },
+    { x: b.x + c.x - n.x * h * side, y: b.y + c.y - n.y * h * side },
+    { x: a.x + c.x - n.x * h * side, y: a.y + c.y - n.y * h * side },
+  ];
+  g.appendChild(el('path', {
+    d: `M ${q[0].x} ${q[0].y} L ${q[1].x} ${q[1].y} L ${q[2].x} ${q[2].y} L ${q[3].x} ${q[3].y} Z`,
+    class: 'door-slider', 'data-object': obj.id, 'stroke-width': 1 / s,
+  }));
+
+  // csúszás-nyíl a lap közepétől, a fal irányában
+  const mid = G.mid(a, b);
+  const base = { x: mid.x + c.x, y: mid.y + c.y };
+  const len = Math.max(G.dist(a, b) * 0.35, 12 / s);
+  const tip = { x: base.x + dir.x * len * slide, y: base.y + dir.y * len * slide };
+  g.appendChild(el('line', {
+    x1: base.x, y1: base.y, x2: tip.x, y2: tip.y,
+    class: 'door-slide-arrow', 'data-object': obj.id, 'stroke-width': 1.2 / s,
+  }));
+  const hw = 4 / s, hl = 7 / s;
+  g.appendChild(el('path', {
+    d: `M ${tip.x} ${tip.y} `
+     + `L ${tip.x - dir.x * hl * slide + n.x * hw} ${tip.y - dir.y * hl * slide + n.y * hw} `
+     + `L ${tip.x - dir.x * hl * slide - n.x * hw} ${tip.y - dir.y * hl * slide - n.y * hw} Z`,
+    class: 'door-slide-head', 'data-object': obj.id,
+  }));
+}
+
 // egy ajtólap: a zsanértól a nyitási oldal felé kifordítva, plusz a nyitási ív
 // (`toward` csak az ív körüljárási irányát adja meg — a zsanérhoz képest hova
 // esik a nyílás másik vége)

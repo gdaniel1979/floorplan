@@ -620,6 +620,24 @@ input.rename {
   pointer-events: none;
 }
 
+/* tolóajtó: tömör lap a fal síkja mellett + csúszás-nyíl */
+.door-slider {
+  fill: #f7d9b0;
+  stroke: #c9791a;
+  pointer-events: none;
+}
+
+.door-slide-arrow {
+  stroke: #c9791a;
+  fill: none;
+  pointer-events: none;
+}
+
+.door-slide-head {
+  fill: #c9791a;
+  pointer-events: none;
+}
+
 .window-fill {
   fill: #fbe3c2;
   stroke: #c9791a;
@@ -952,6 +970,18 @@ input.rename {
 
 .room-editor input[type="text"] {
   width: 140px;
+  padding: 3px 6px;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg-ui);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  outline: none;
+}
+
+/* belmagasság a helyiség-buborékban, a névmező mellett */
+.room-editor input[type="number"] {
+  width: 62px;
   padding: 3px 6px;
   font-size: 13px;
   color: var(--fg);
