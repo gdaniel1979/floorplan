@@ -15,34 +15,88 @@ export const LAYER_LABELS = {
   szaniter: 'Szaniter', konyha: 'Konyha', butor: 'Bútorok', epulet: 'Épületelemek',
 };
 
+// kategóriánkénti alap-szín: halvány, hogy a fal-sraffozás fölött is olvasható
+// maradjon a rajz; tárgyanként felülírható
+export const DEFAULT_COLORS = {
+  szaniter: '#e8f1f8',
+  konyha: '#f3ecdd',
+  butor: '#eef0e9',
+  epulet: '#eceaea',
+};
+
+// A katalógus kategóriákra, azon belül csoportokra (`group`) bomlik. A
+// kategória a RÉTEG-kapcsoláshoz kell (ui.layerVisible), a csoport csak a
+// paletta áttekinthetőségéhez — ezért a kategóriák száma nem változott.
 export const CATALOG = {
   szaniter: [
-    { type: 'wc', label: 'WC', w: 40, h: 65 },
-    { type: 'mosdo', label: 'Mosdó', w: 60, h: 45 },
-    { type: 'kad', label: 'Kád', w: 170, h: 75 },
-    { type: 'zuhany', label: 'Zuhanytálca', w: 90, h: 90 },
+    { group: 'Szaniter', type: 'wc', label: 'WC', w: 40, h: 65 },
+    { group: 'Szaniter', type: 'mosdo', label: 'Mosdó', w: 60, h: 45 },
+    { group: 'Szaniter', type: 'duplamosdo', label: 'Dupla mosdó', w: 120, h: 50 },
+    { group: 'Szaniter', type: 'bide', label: 'Bidé', w: 40, h: 60 },
+    { group: 'Szaniter', type: 'kad', label: 'Kád', w: 170, h: 75 },
+    { group: 'Szaniter', type: 'zuhany', label: 'Zuhanytálca', w: 90, h: 90 },
+    { group: 'Szaniter', type: 'zuhanykabin', label: 'Zuhanykabin', w: 90, h: 90 },
+    { group: 'Gépek', type: 'mosogep', label: 'Mosógép', w: 60, h: 60 },
+    { group: 'Gépek', type: 'szaritogep', label: 'Szárítógép', w: 60, h: 60 },
+    { group: 'Gépek', type: 'bojler', label: 'Bojler', w: 45, h: 45 },
   ],
   konyha: [
-    { type: 'mosogato', label: 'Mosogató', w: 60, h: 60 },
-    { type: 'tuzhely', label: 'Tűzhely', w: 60, h: 60 },
-    { type: 'huto', label: 'Hűtő', w: 60, h: 65 },
-    { type: 'konyhapult', label: 'Konyhapult', w: 200, h: 60 },
+    { group: 'Gépek', type: 'tuzhely', label: 'Tűzhely', w: 60, h: 60 },
+    { group: 'Gépek', type: 'suto', label: 'Beépített sütő', w: 60, h: 60 },
+    { group: 'Gépek', type: 'mikro', label: 'Mikró', w: 50, h: 35 },
+    { group: 'Gépek', type: 'paraelszivo', label: 'Páraelszívó', w: 60, h: 50 },
+    { group: 'Gépek', type: 'huto', label: 'Hűtő', w: 60, h: 65 },
+    { group: 'Gépek', type: 'mosogatogep', label: 'Mosogatógép', w: 60, h: 60 },
+    { group: 'Szekrények, pultok', type: 'mosogato', label: 'Mosogató', w: 60, h: 60 },
+    { group: 'Szekrények, pultok', type: 'konyhapult', label: 'Konyhapult', w: 200, h: 60 },
+    { group: 'Szekrények, pultok', type: 'alsoszekreny', label: 'Alsó szekrény', w: 60, h: 60 },
+    { group: 'Szekrények, pultok', type: 'felsoszekreny', label: 'Felső szekrény', w: 60, h: 35 },
+    { group: 'Szekrények, pultok', type: 'sarokszekreny', label: 'Sarokszekrény', w: 90, h: 90 },
+    { group: 'Szekrények, pultok', type: 'konyhasziget', label: 'Konyhasziget', w: 180, h: 90 },
+    { group: 'Szekrények, pultok', type: 'barpult', label: 'Bárpult', w: 160, h: 40 },
   ],
   butor: [
-    { type: 'agy', label: 'Ágy', w: 160, h: 200 },
-    { type: 'kanape', label: 'Kanapé', w: 200, h: 90 },
-    { type: 'fotel', label: 'Fotel', w: 80, h: 80 },
-    { type: 'etkezoasztal', label: 'Étkezőasztal', w: 140, h: 80 },
-    { type: 'dohanyzoasztal', label: 'Dohányzóasztal', w: 100, h: 60 },
-    { type: 'szek', label: 'Szék', w: 45, h: 45 },
-    { type: 'szekreny', label: 'Szekrény', w: 100, h: 60 },
+    { group: 'Háló', type: 'franciaagy', label: 'Franciaágy', w: 180, h: 200 },
+    { group: 'Háló', type: 'agy', label: 'Ágy', w: 160, h: 200 },
+    { group: 'Háló', type: 'egyagy', label: 'Egyszemélyes ágy', w: 90, h: 200 },
+    { group: 'Háló', type: 'emeletesagy', label: 'Emeletes ágy', w: 90, h: 200 },
+    { group: 'Háló', type: 'ejjeliszekreny', label: 'Éjjeliszekrény', w: 45, h: 40 },
+    { group: 'Háló', type: 'gardrob', label: 'Gardróbszekrény', w: 200, h: 60 },
+    { group: 'Háló', type: 'szekreny', label: 'Szekrény', w: 100, h: 60 },
+    { group: 'Háló', type: 'komod', label: 'Komód', w: 100, h: 45 },
+    { group: 'Nappali', type: 'kanape', label: 'Kanapé', w: 200, h: 90 },
+    { group: 'Nappali', type: 'sarokkanape', label: 'Sarokkanapé', w: 250, h: 180 },
+    { group: 'Nappali', type: 'fotel', label: 'Fotel', w: 80, h: 80 },
+    { group: 'Nappali', type: 'puff', label: 'Puff', w: 50, h: 50 },
+    { group: 'Nappali', type: 'dohanyzoasztal', label: 'Dohányzóasztal', w: 100, h: 60 },
+    { group: 'Nappali', type: 'tvszekreny', label: 'TV-szekrény', w: 150, h: 40 },
+    { group: 'Nappali', type: 'konyvespolc', label: 'Könyvespolc', w: 80, h: 30 },
+    { group: 'Nappali', type: 'szonyeg', label: 'Szőnyeg', w: 200, h: 300 },
+    { group: 'Étkező', type: 'etkezoasztal', label: 'Étkezőasztal', w: 140, h: 80 },
+    { group: 'Étkező', type: 'kerekasztal', label: 'Kerek étkezőasztal', w: 120, h: 120 },
+    { group: 'Étkező', type: 'szek', label: 'Szék', w: 45, h: 45 },
+    { group: 'Dolgozó', type: 'iroasztal', label: 'Íróasztal', w: 140, h: 70 },
+    { group: 'Dolgozó', type: 'irodaiszek', label: 'Irodai szék', w: 55, h: 55 },
   ],
   epulet: [
-    { type: 'oszlop', label: 'Oszlop', w: 30, h: 30 },
-    { type: 'kemeny', label: 'Kémény', w: 50, h: 50 },
-    { type: 'lepcso', label: 'Lépcső', w: 100, h: 280 },
+    { group: 'Szerkezet', type: 'oszlop', label: 'Oszlop', w: 30, h: 30 },
+    { group: 'Szerkezet', type: 'kemeny', label: 'Kémény', w: 50, h: 50 },
+    { group: 'Szerkezet', type: 'lepcso', label: 'Lépcső', w: 100, h: 280 },
+    { group: 'Gépészet', type: 'radiator', label: 'Radiátor', w: 80, h: 10 },
+    { group: 'Gépészet', type: 'kandallo', label: 'Kandalló', w: 120, h: 50 },
+    { group: 'Gépészet', type: 'akna', label: 'Gépészeti akna', w: 60, h: 60 },
+    { group: 'Gépészet', type: 'meterszekreny', label: 'Mérőóra-szekrény', w: 40, h: 20 },
   ],
 };
+
+// a kategórián belüli csoportok, a katalógusbeli sorrendben
+export function catalogGroups(category) {
+  const seen = [];
+  for (const def of CATALOG[category] || []) {
+    if (!seen.includes(def.group)) seen.push(def.group);
+  }
+  return seen;
+}
 
 export function catalogItem(category, type) {
   return (CATALOG[category] || []).find(d => d.type === type) || null;
@@ -59,6 +113,7 @@ export function addFurniture(plan, category, type, p) {
   const item = {
     id: newId(), category, type, label: def.label,
     x: round1(p.x), y: round1(p.y), w: def.w, h: def.h, rotation: 0,
+    color: DEFAULT_COLORS[category] || '#eeeeee',
   };
   if (type === 'lepcso') {
     item.steps = Math.max(2, Math.round(def.h / STAIR_TREAD));
@@ -82,6 +137,16 @@ export function setStairSteps(plan, item, steps) {
 export function setStairDir(plan, item, dir) {
   if (!isStair(item)) return;
   item.dir = dir === 'down' ? 'down' : 'up';
+  notify();
+}
+
+export function furnitureColor(item) {
+  return item?.color || DEFAULT_COLORS[item?.category] || '#eeeeee';
+}
+
+export function setFurnitureColor(plan, item, color) {
+  if (!item || !color) return;
+  item.color = color;
   notify();
 }
 

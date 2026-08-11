@@ -10,7 +10,8 @@ import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
 import { objectGeometry, objectHeight, openingClearances, doorType } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
-import { rotatedPoint, rotateHandlePoint, isStair, stairShape, stairArmW } from './furniture.js';
+import { rotatedPoint, rotateHandlePoint, isStair, stairShape, stairArmW, furnitureColor } from './furniture.js';
+import { furnitureSymbolParts, hasSymbol, hidesBody } from './symbols.js';
 import { computeRoomSurfaces } from './surfaces.js';
 
 export function renderAll() {
@@ -248,6 +249,7 @@ function furnitureSymbol(item, s) {
   g.appendChild(el('rect', {
     x: item.x - item.w / 2, y: item.y - item.h / 2, width: item.w, height: item.h,
     class: 'furniture-body', 'data-furniture': item.id, 'stroke-width': 1 / s,
+    fill: furnitureColor(item),
   }));
 
   // a lépcső nem egyszerű téglalap: fokok + járóvonal + irányjelölés
@@ -256,7 +258,20 @@ function furnitureSymbol(item, s) {
     return g;
   }
 
-  if (ui.layerVisible.furnitureLabels) {
+  // sematikus rajzjel, ha van hozzá — a puszta téglalapból nem látszik, mi az.
+  // Néhány tárgynál (kerek asztal, puff, sarokkanapé) maga a rajzjel adja a
+  // körvonalat, ott a befoglaló téglalapot elhagyjuk — de a kattintható
+  // felületet meg kell tartani, ezért láthatatlanná tesszük, nem töröljük.
+  const parts = furnitureSymbolParts(item, s);
+  if (parts.length && hidesBody(item.type)) {
+    const body = g.querySelector('.furniture-body');
+    if (body) { body.setAttribute('fill', 'transparent'); body.setAttribute('stroke', 'none'); }
+    if (parts[0]) parts[0].setAttribute('fill', furnitureColor(item));
+  }
+  for (const part of parts) g.appendChild(part);
+
+  // a feliratot csak akkor tesszük ki, ha nincs rajzjel (különben csak takar)
+  if (ui.layerVisible.furnitureLabels && !hasSymbol(item.type)) {
     const label = el('text', {
       x: item.x, y: item.y, class: 'furniture-label', 'font-size': 11 / s,
     });
@@ -442,6 +457,9 @@ function updateFurnitureOptionsPanel(plan) {
 
   const rotInput = document.getElementById('furniture-sel-rotation');
   if (rotInput && document.activeElement !== rotInput) rotInput.value = item.rotation;
+
+  const colorInput = document.getElementById('furniture-sel-color');
+  if (colorInput && document.activeElement !== colorInput) colorInput.value = furnitureColor(item);
 
   // a lépcső-vezérlők csak lépcsőnél látszanak
   const stair = isStair(item);

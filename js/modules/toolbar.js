@@ -5,7 +5,7 @@ import { setTool } from './tools.js';
 import { getPlan, wallById, setWallInteriorLength, setWallThickness } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
-import { CATALOG, LAYER_LABELS, setFurnitureSize, setFurnitureRotation, clearFurniture, setStairSteps, setStairDir, setStairShape, setStairArmW } from './furniture.js';
+import { CATALOG, catalogGroups, LAYER_LABELS, setFurnitureSize, setFurnitureRotation, clearFurniture, setStairSteps, setStairDir, setStairShape, setStairArmW, setFurnitureColor } from './furniture.js';
 import { setRoomHeight } from './rooms.js';
 import { LAYER_GROUPS, setLayer, setGroup, groupState } from './layers.js';
 import { resizeObject, setObjectHeight } from './objects.js';
@@ -306,23 +306,34 @@ function initFurnitureControls() {
     items.className = 'furn-items';
     items.hidden = true;
 
-    for (const def of CATALOG[category]) {
-      const li = document.createElement('li');
-      li.className = 'furn-item';
-      const label = document.createElement('span');
-      label.className = 'name';
-      label.textContent = def.label;
-      const dims = document.createElement('span');
-      dims.className = 'muted';
-      dims.textContent = `${def.w}×${def.h}`;
-      li.append(label, dims);
-      li.addEventListener('click', () => {
-        ui.furnitureCategory = category;
-        ui.furniturePendingType = def.type;
-        setTool('furniture');
-        for (const other of tree.querySelectorAll('.furn-item')) other.classList.toggle('active', other === li);
-      });
-      items.appendChild(li);
+    // a kategórián belül csoportonként (Háló / Nappali / Gépek …), hogy a
+    // hosszabb listák is áttekinthetők maradjanak
+    const groups = catalogGroups(category);
+    for (const groupName of groups) {
+      if (groups.length > 1) {
+        const head = document.createElement('li');
+        head.className = 'furn-subhead';
+        head.textContent = groupName;
+        items.appendChild(head);
+      }
+      for (const def of CATALOG[category].filter(d => d.group === groupName)) {
+        const li = document.createElement('li');
+        li.className = 'furn-item';
+        const label = document.createElement('span');
+        label.className = 'name';
+        label.textContent = def.label;
+        const dims = document.createElement('span');
+        dims.className = 'muted';
+        dims.textContent = `${def.w}×${def.h}`;
+        li.append(label, dims);
+        li.addEventListener('click', () => {
+          ui.furnitureCategory = category;
+          ui.furniturePendingType = def.type;
+          setTool('furniture');
+          for (const other of tree.querySelectorAll('.furn-item')) other.classList.toggle('active', other === li);
+        });
+        items.appendChild(li);
+      }
     }
 
     row.addEventListener('click', () => {
@@ -359,6 +370,15 @@ function initFurnitureControls() {
     if (!item || !(v > 0)) return;
     const before = snapshot();
     setFurnitureSize(getPlan(), item, null, v);
+    checkpoint(before);
+  });
+
+  const colorInput = document.getElementById('furniture-sel-color');
+  colorInput?.addEventListener('input', () => {
+    const item = selectedFurniture();
+    if (!item) return;
+    const before = snapshot();
+    setFurnitureColor(getPlan(), item, colorInput.value);
     checkpoint(before);
   });
 

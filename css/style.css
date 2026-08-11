@@ -289,6 +289,17 @@ html, body {
   padding: 0 0 4px 20px;
 }
 
+.furn-subhead {
+  padding: 6px 6px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.furn-subhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 6px; }
+
 .furn-item {
   display: flex;
   align-items: center;
@@ -707,6 +718,18 @@ input.rename {
 }
 
 /* --- Bútor-könyvtár (szaniter/konyha/bútor/épületelem) --- */
+
+.furn-line {
+  fill: none;
+  stroke: #4d5867;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* halványabb, másodlagos vonalak a rajzjeleken (párnaosztás, pultél, folyóka) */
+.furn-faint { stroke: #8a94a1; }
+/* nyitási irány jelzése (szekrény) */
+.furn-dash { stroke: #8a94a1; stroke-dasharray: 4 3; }
 
 .furniture-body {
   fill: transparent;

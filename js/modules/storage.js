@@ -9,16 +9,23 @@ import { repairAllPlans, repairPropertyPlans } from './wallrepair.js';
 const KEY = 'floorplan.v1';
 
 export function load() {
+  let data = null;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const data = JSON.parse(raw);
-      if (isFullState(data)) { repairAllPlans(data); setState(data); return; }
+      const parsed = JSON.parse(raw);
+      if (isFullState(parsed)) { repairAllPlans(parsed); data = parsed; }
     }
   } catch (e) {
-    console.warn('A mentett adat nem olvasható, új állapot indul.', e);
+    console.error('A mentett adat nem olvasható, új állapot indul.', e);
   }
-  setState(initialState());
+
+  // A setState a RAJZOLÁST is elindítja, ezért szándékosan a try-n KÍVÜL van.
+  // Ha a rajzolás hibázik, az a kód hibája, nem az adaté — korábban viszont
+  // ugyanaz a catch kapta el, üres állapotra váltott, és az automatikus mentés
+  // rá is írta a tárolóra: egyetlen rajzoló hiba VÉGLEG kitörölte a felhasználó
+  // alaprajzát. Így a memóriában mindenképp a betöltött adat marad.
+  setState(data || initialState());
 }
 
 let saveTimer = null;
