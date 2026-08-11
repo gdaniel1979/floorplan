@@ -243,6 +243,87 @@ export function wallSnapPosition(plan, item, x, y, tol) {
   return { x: round1(x + best.n.x * best.delta), y: round1(y + best.n.y * best.delta) };
 }
 
+// --- a kijelölt bútor négy oldalától a legközelebbi falig mért távolság ---
+//
+// Mind a négy oldal KÖZEPÉBŐL merőleges sugarat indítunk kifelé (a tárgy saját,
+// elforgatott rendszerében), és megkeressük az első falat, amit elmetsz. Így a
+// szám elforgatott tárgynál is a valódi távolságot mutatja, és a szemközti
+// oldalon lévő fal sem "látszik át" a közelebbin.
+export const FURNITURE_SIDES = ['left', 'right', 'back', 'front'];
+
+export function furnitureClearances(plan, item) {
+  if (!item) return [];
+  const out = [];
+  for (const key of FURNITURE_SIDES) {
+    const ray = sideRay(item, key);
+    const dist = rayToWall(plan, ray.from, ray.dir);
+    if (dist == null || dist < 0.5) continue;   // falhoz tapasztva nincs mit mérni
+    out.push({ key, from: ray.from, dir: ray.dir, dist: round1(dist) });
+  }
+  return out;
+}
+
+// a bútor adott oldalának közepe és a kifelé mutató egységvektor
+function sideRay(item, key) {
+  const L = {
+    left:  [-item.w / 2, 0, -1, 0], right: [item.w / 2, 0, 1, 0],
+    back:  [0, -item.h / 2, 0, -1], front: [0, item.h / 2, 0, 1],
+  }[key];
+  const rad = item.rotation * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  return {
+    from: { x: item.x + L[0] * cos - L[1] * sin, y: item.y + L[0] * sin + L[1] * cos },
+    dir: { x: L[2] * cos - L[3] * sin, y: L[2] * sin + L[3] * cos },
+  };
+}
+
+// a sugár által elsőként metszett fal távolsága (a falat a vastagságával együtt,
+// téglalapként kezeljük) — `null`, ha egyet sem talál el
+function rayToWall(plan, from, dir) {
+  let best = null;
+  for (const w of plan.walls) {
+    if (w.bulge) continue;
+    const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+    if (!a || !b) continue;
+    const len = G.dist(a, b);
+    if (len < 1) continue;
+    const u = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+    const v = { x: -u.y, y: u.x };
+    const o = [(from.x - a.x) * u.x + (from.y - a.y) * u.y, (from.x - a.x) * v.x + (from.y - a.y) * v.y];
+    const d = [dir.x * u.x + dir.y * u.y, dir.x * v.x + dir.y * v.y];
+    const t = raySlab(o, d, [[0, len], [-w.thickness / 2, w.thickness / 2]]);
+    if (t != null && (best == null || t < best)) best = t;
+  }
+  return best;
+}
+
+// sugár–téglalap metszés a téglalap saját rendszerében (slab-módszer)
+function raySlab(o, d, ranges) {
+  let t0 = 0, t1 = Infinity;
+  for (let i = 0; i < 2; i++) {
+    const [lo, hi] = ranges[i];
+    if (Math.abs(d[i]) < 1e-9) {
+      if (o[i] < lo || o[i] > hi) return null;
+      continue;
+    }
+    let ta = (lo - o[i]) / d[i], tb = (hi - o[i]) / d[i];
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+    if (t0 > t1) return null;
+  }
+  return t0;
+}
+
+// a szám átírása: a tárgyat az adott oldal irányában toljuk el annyival, hogy
+// ott pontosan a beírt távolság maradjon
+export function setFurnitureClearance(plan, item, key, value) {
+  const side = furnitureClearances(plan, item).find(c => c.key === key);
+  if (!side || !(value >= 0)) return;
+  const delta = side.dist - value;
+  item.x = round1(item.x + side.dir.x * delta);
+  item.y = round1(item.y + side.dir.y * delta);
+  notify();
+}
+
 export function setFurnitureRotation(plan, item, deg) {
   item.rotation = round1(((deg % 360) + 360) % 360);
   notify();

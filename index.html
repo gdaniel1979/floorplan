@@ -15,6 +15,7 @@
         <button id="save-menu-btn" class="btn">Mentés ▾</button>
         <div id="save-menu" class="menu" hidden>
           <button id="export-json" class="menu-item">Exportálás (JSON)</button>
+          <button id="export-pdf" class="menu-item">Exportálás (PDF)…</button>
           <button id="import-json" class="menu-item">Importálás…</button>
           <div class="menu-note">A munka automatikusan mentődik a böngészőbe.</div>
         </div>
@@ -249,5 +250,52 @@
     </aside>
   </div>
   <script type="module" src="js/app.js"></script>
+
+  <!-- PDF-export beállításai: a lap mérete, a feliratok papíron mért mérete és
+       az, hogy mi kerüljön a rajzra. Egy A4-re zsúfolt teljes alaprajzon a sok
+       felirat egymásra csúszik, ezért itt szűrhető. -->
+  <div id="pdf-dialog" class="modal" hidden>
+    <div class="modal-card">
+      <h2>PDF exportálás</h2>
+      <div class="control-row">
+        <label for="pdf-paper">Papír</label>
+        <select id="pdf-paper">
+          <option value="A4" selected>A4</option>
+          <option value="A3">A3</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label for="pdf-orient">Tájolás</label>
+        <select id="pdf-orient">
+          <option value="auto" selected>Automatikus</option>
+          <option value="landscape">Fekvő</option>
+          <option value="portrait">Álló</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label for="pdf-text">Feliratok mérete</label>
+        <select id="pdf-text">
+          <option value="2">Kicsi (2 mm)</option>
+          <option value="2.6" selected>Közepes (2,6 mm)</option>
+          <option value="3.4">Nagy (3,4 mm)</option>
+        </select>
+      </div>
+      <div class="pdf-content">
+        <span class="pdf-content-head">Mi kerüljön a rajzra</span>
+        <label><input type="checkbox" data-pdf-layer="dimChains" checked> Külső méretláncok</label>
+        <label><input type="checkbox" data-pdf-layer="wallLengths"> Belső falhosszak</label>
+        <label><input type="checkbox" data-pdf-layer="openingSizes"> Nyílászáró-méretek</label>
+        <label><input type="checkbox" data-pdf-layer="roomName" checked> Helyiség neve</label>
+        <label><input type="checkbox" data-pdf-layer="roomArea" checked> Terület (m²)</label>
+        <label><input type="checkbox" data-pdf-layer="roomHeight"> Belmagasság</label>
+        <label><input type="checkbox" data-pdf-layer="furnitureLabels"> Bútor-feliratok</label>
+      </div>
+      <p class="hint">A nyomtatási ablakban válaszd a „Mentés PDF-ként” célt. A rajz vektoros marad.</p>
+      <div class="modal-actions">
+        <button id="pdf-cancel" class="btn">Mégse</button>
+        <button id="pdf-go" class="btn primary">Nyomtatás…</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

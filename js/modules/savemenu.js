@@ -1,8 +1,10 @@
 // Mentés-menü a fejlécben: exportálás/importálás lenyíló menüből.
 
 import { exportJson, importJson } from './storage.js';
+import { initPdfExport, openPdfDialog } from './pdfexport.js';
 
 export function initSaveMenu() {
+  initPdfExport();
   const btn = document.getElementById('save-menu-btn');
   const menu = document.getElementById('save-menu');
   const fileInput = document.getElementById('import-file');
@@ -20,6 +22,14 @@ export function initSaveMenu() {
   document.getElementById('export-json').addEventListener('click', () => {
     menu.hidden = true;
     exportJson();
+  });
+
+  // PDF: előbb a beállítások (lapméret, feliratméret, tartalom), utána a
+  // böngésző nyomtatási párbeszéde írja ki — a rajz vektoros marad
+
+  document.getElementById('export-pdf').addEventListener('click', () => {
+    menu.hidden = true;
+    openPdfDialog();
   });
 
   document.getElementById('import-json').addEventListener('click', () => {

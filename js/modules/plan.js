@@ -222,7 +222,8 @@ export function wallClearances(plan, w) {
   const nrm = { x: -dir.y, y: dir.x };
   const half = w.thickness / 2;
 
-  let neg = null, pos = null;
+  // a fallal párhuzamos falak, a saját tengelyünkre vetítve
+  const par = [];
   for (const o of plan.walls) {
     if (o.id === w.id || o.bulge) continue;
     const oa = nodeById(plan, o.a), ob = nodeById(plan, o.b);
@@ -241,16 +242,58 @@ export function wallClearances(plan, w) {
     const clear = Math.abs(offset) - half - o.thickness / 2;
     if (clear < 0.5) continue; // egy vonalban vagy átfedésben, nincs mit mérni
 
-    // a mérővonal az átfedés harmadánál fut, nem a közepén — a helyiség
-    // név/terület felirata a súlypontban ül, ott takarnák egymást
-    const lo = Math.max(0, Math.min(t0, t1)), hi = Math.min(len, Math.max(t0, t1));
-    const cand = { offset, clear, overlapAt: lo + (hi - lo) * 0.32 };
-    if (offset < 0) { if (!neg || Math.abs(offset) < Math.abs(neg.offset)) neg = cand; }
-    else if (!pos || offset < pos.offset) pos = cand;
+    par.push({ id: o.id, lo: Math.min(t0, t1), hi: Math.max(t0, t1), offset, clear });
+  }
+  if (!par.length) return null;
+
+  // Mintavételezés a fal mentén: minden pontban oldalanként a LEGKÖZELEBBI
+  // szomszédot vesszük. Egy hosszú fal több helyiséget is határolhat, ezért a
+  // "legközelebbi átfedő fal" önmagában kevés: a mérővonal könnyen egy másik
+  // helyiség fölé kerülne (ott a szám nem is igaz), a másik oldal pedig
+  // olvashatatlanul takarásba került. A mintákból oldalanként a leghosszabb
+  // ÖSSZEFÜGGŐ, ugyanahhoz a falhoz tartozó szakaszt választjuk.
+  const hits = { neg: [], pos: [] };
+  for (let i = 0; i < CLEAR_SAMPLES; i++) {
+    const t = len * (i + 0.5) / CLEAR_SAMPLES;
+    for (const key of ['neg', 'pos']) {
+      const sign = key === 'neg' ? -1 : 1;
+      let best = null;
+      for (const p of par) {
+        if (Math.sign(p.offset) !== sign || t < p.lo || t > p.hi) continue;
+        if (!best || p.clear < best.clear) best = p;
+      }
+      hits[key].push(best);
+    }
   }
 
+  // a két oldal címkéje a szakaszán belül eltérő helyre kerül, hogy a fal
+  // ugyanazon pontján ne fedjék egymást (és a helyiség-feliratot se)
+  const neg = longestRun(hits.neg, len, 0.34);
+  const pos = longestRun(hits.pos, len, 0.66);
   if (!neg && !pos) return null;
   return { a, dir, nrm, half, neg, pos };
+}
+
+const CLEAR_SAMPLES = 64;
+
+// a minták leghosszabb, egyazon szomszéd falhoz tartozó összefüggő szakasza;
+// a mérővonal ezen belül `frac` arányban áll
+function longestRun(samples, len, frac) {
+  let best = null;
+  for (let i = 0; i < samples.length;) {
+    const cur = samples[i];
+    if (!cur) { i++; continue; }
+    let j = i;
+    while (j + 1 < samples.length && samples[j + 1]?.id === cur.id) j++;
+    const n = j - i + 1;
+    if (!best || n > best.n) best = { n, side: cur, lo: i / samples.length, hi: (j + 1) / samples.length };
+    i = j + 1;
+  }
+  if (!best) return null;
+  return {
+    offset: best.side.offset, clear: best.side.clear,
+    overlapAt: len * (best.lo + (best.hi - best.lo) * frac),
+  };
 }
 
 // A fal ELTOLÁSA önmagára merőlegesen úgy, hogy a megadott oldalon a szabad

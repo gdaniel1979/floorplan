@@ -10,7 +10,7 @@ import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
 import { objectGeometry, objectHeight, openingClearances, doorType } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
-import { rotatedPoint, rotateHandlePoint, isStair, stairShape, stairArmW, furnitureColor } from './furniture.js';
+import { rotatedPoint, rotateHandlePoint, isStair, stairShape, stairArmW, furnitureColor, furnitureClearances } from './furniture.js';
 import { furnitureSymbolParts, hasSymbol, hidesBody } from './symbols.js';
 import { computeRoomSurfaces } from './surfaces.js';
 
@@ -117,6 +117,7 @@ export function renderAll() {
         cx: hp.x, cy: hp.y, r: 6 / s, class: 'furniture-rotate-handle',
         'data-furniture': item.id, 'data-handle': 'furnitureRotate', 'stroke-width': 1.5 / s,
       }));
+      overlay.appendChild(furnitureClearanceDims(plan, item, s));
     }
   }
 
@@ -1162,6 +1163,49 @@ function clearanceDim(c, side, sideKey, w, s) {
   });
   label.textContent = formatMeters(side.clear);
   g.appendChild(label);
+  return g;
+}
+
+// --- kijelölt bútor: távolság mind a négy oldalán a legközelebbi falig ---
+//
+// Minden oldalról egy nyíl mutat a falig, rajta a mérettel. A szám KATTINTHATÓ:
+// beírt értékre a tárgy odacsúszik (a 10 cm-es húzási lépték helyett pontosan).
+function furnitureClearanceDims(plan, item, s) {
+  const g = el('g', { class: 'furn-clearance' });
+  for (const c of furnitureClearances(plan, item)) {
+    const to = { x: c.from.x + c.dir.x * c.dist, y: c.from.y + c.dir.y * c.dist };
+    g.appendChild(el('line', {
+      x1: c.from.x, y1: c.from.y, x2: to.x, y2: to.y,
+      class: 'furn-clear-line', 'stroke-width': 1.2 / s,
+    }));
+
+    // nyílhegy a fal felőli végén + rövid alapvonal a bútor oldalán
+    const n = { x: -c.dir.y, y: c.dir.x };
+    const head = 7 / s, wing = 3.5 / s;
+    g.appendChild(el('path', {
+      d: `M ${to.x} ${to.y} L ${to.x - c.dir.x * head + n.x * wing} ${to.y - c.dir.y * head + n.y * wing} `
+       + `L ${to.x - c.dir.x * head - n.x * wing} ${to.y - c.dir.y * head - n.y * wing} Z`,
+      class: 'furn-clear-head',
+    }));
+    g.appendChild(el('line', {
+      x1: c.from.x - n.x * 5 / s, y1: c.from.y - n.y * 5 / s,
+      x2: c.from.x + n.x * 5 / s, y2: c.from.y + n.y * 5 / s,
+      class: 'furn-clear-line', 'stroke-width': 1.2 / s,
+    }));
+
+    let deg = Math.atan2(c.dir.y, c.dir.x) * 180 / Math.PI;
+    if (deg > 90 || deg <= -90) deg += 180;    // a szám sose álljon fejjel lefelé
+    const mid = G.mid(c.from, to);
+    const label = el('text', {
+      x: mid.x, y: mid.y,
+      class: 'furn-clear-label', 'font-size': 11 / s, 'stroke-width': 3 / s,
+      'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      'data-furniture': item.id, 'data-furn-clear-side': c.key,
+      transform: `rotate(${deg} ${mid.x} ${mid.y})`,
+    });
+    label.textContent = formatMeters(c.dist);
+    g.appendChild(label);
+  }
   return g;
 }
 

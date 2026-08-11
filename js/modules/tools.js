@@ -12,7 +12,7 @@ import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom, setRoomHeight } from './rooms.js';
 import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall, openingClearances, setOpeningClearance } from './objects.js';
-import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint, wallSnapPosition } from './furniture.js';
+import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint, wallSnapPosition, furnitureClearances, setFurnitureClearance } from './furniture.js';
 import { showToast } from './toast.js';
 import { repairWallNetwork } from './wallrepair.js';
 
@@ -166,6 +166,12 @@ function onDown(e) {
   // a szabad-táv szám: pontos érték beírható, ha a húzási lépték nem elég finom
   if (t.classList?.contains('clearance-label')) {
     openClearanceEditor(t.dataset.wall, t.dataset.clearSide, e.clientX, e.clientY);
+    return;
+  }
+
+  // a bútor falaktól mért távolsága — beírt értékre a tárgy odacsúszik
+  if (t.classList?.contains('furn-clear-label')) {
+    openFurnitureClearanceEditor(t.dataset.furniture, t.dataset.furnClearSide, e.clientX, e.clientY);
     return;
   }
 
@@ -862,6 +868,22 @@ function openClearanceEditor(wallId, sideKey, clientX, clientY) {
     setWallClearance(plan, w, sideKey, v);
     repairWallNetwork(plan);
     notify();
+    checkpoint(before);
+  });
+}
+
+// a bútor–fal távolság szerkesztése: a tárgy az adott oldal irányában csúszik
+// el annyival, hogy ott pontosan a beírt méret maradjon
+function openFurnitureClearanceEditor(furnitureId, sideKey, clientX, clientY) {
+  closeEditor();
+  const plan = getPlan();
+  const item = plan?.furniture.find(f => f.id === furnitureId);
+  const side = item && furnitureClearances(plan, item).find(c => c.key === sideKey);
+  if (!side) return;
+
+  openValueEditor(Math.round(side.dist), clientX, clientY, v => {
+    const before = snapshot();
+    setFurnitureClearance(plan, item, sideKey, v);
     checkpoint(before);
   });
 }

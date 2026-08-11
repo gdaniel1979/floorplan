@@ -45,11 +45,30 @@ export function getOverlay() { return overlayGroup; }
 // szélessége) — az egész rajz sok helyen oszt ezzel, egy rossz érték az összes
 // koordinátát tartósan elrontaná
 export function getScale() {
+  if (scaleOverride) return scaleOverride;
   const s = svg.clientWidth / vb.w;
   return Number.isFinite(s) && s > 0 ? s : ZOOM_MIN;
 }
 
+// A PDF-export idejére a lépték a PAPÍRHOZ igazodik, nem a képernyőhöz: a
+// feliratok és vonalvastagságok mind `k / getScale()` alakúak, így egyetlen
+// felülírt léptékkel beállítható, hány mm-es legyen a szöveg a lapon.
+let scaleOverride = null;
+
+export function setScaleOverride(s) {
+  scaleOverride = Number.isFinite(s) && s > 0 ? s : null;
+}
+
 export function onViewChange(fn) { viewListeners.push(fn); }
+
+// a nézet kimentése/visszaállítása (a PDF-export a rajz teljes nézetére áll át,
+// majd visszateszi, ahol a felhasználó épp járt)
+export function getViewBox() { return { ...vb }; }
+
+export function setViewBox(v) {
+  vb.x = v.x; vb.y = v.y; vb.w = v.w; vb.h = v.h;
+  applyViewBox();
+}
 
 export function clientToWorld(clientX, clientY) {
   const rect = svg.getBoundingClientRect();
@@ -179,13 +198,13 @@ function buildGrid() {
   defs.appendChild(major);
   svg.appendChild(defs);
 
-  gridRect = el('rect', { fill: 'url(#grid-major)' });
+  gridRect = el('rect', { id: 'grid-rect', fill: 'url(#grid-major)' });
   svg.appendChild(gridRect);
 }
 
 function buildOrigin() {
   // kis kereszt az origónál, hogy legyen viszonyítási pont
-  originGroup = el('g', { stroke: '#8a94a0', 'stroke-linecap': 'round' });
+  originGroup = el('g', { id: 'origin-cross', stroke: '#8a94a0', 'stroke-linecap': 'round' });
   originGroup.appendChild(el('line', { x1: -20, y1: 0, x2: 20, y2: 0 }));
   originGroup.appendChild(el('line', { x1: 0, y1: -20, x2: 0, y2: 20 }));
   svg.appendChild(originGroup);
