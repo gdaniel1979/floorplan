@@ -166,10 +166,11 @@
     </main>
     <div id="right-resizer" title="Húzd a sáv átméretezéséhez"></div>
     <aside id="right-panel">
+      <button id="right-panel-toggle" title="Sáv becsukása / kinyitása" aria-expanded="true">»</button>
       <div class="tool-row" id="right-tabs">
-        <button class="tool-btn active" data-tab="furniture">Bútorok</button>
         <button class="tool-btn" data-tab="layers">Rétegek</button>
-        <button class="tool-btn" data-tab="surfaces">Felületek</button>
+        <button class="tool-btn active" data-tab="furniture">Bútorok</button>
+        <button class="tool-btn" data-tab="surfaces">Helyiségek</button>
       </div>
 
       <div class="tab-panel" data-tabpanel="furniture">
@@ -240,7 +241,7 @@
 
       <div class="tab-panel" data-tabpanel="surfaces" hidden>
         <section class="panel">
-          <h2>Felületek helyiségenként</h2>
+          <h2>Helyiségek</h2>
           <p class="hint">Belmagasság helyiségenként; a fal-felület a nyílászárók (ajtó/ablak) területével csökkentve.</p>
           <div id="surfaces-list"></div>
         </section>

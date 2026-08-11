@@ -18,7 +18,7 @@ function makeCtx(item, s) {
   const out = [];
 
   return {
-    out, X, Y, sw,
+    out, X, Y, sw, w: item.w, h: item.h,
     // téglalap normalizált sarkokkal
     rect(u0, v0, u1, v1, opts = {}) {
       out.push(el('rect', {
@@ -46,14 +46,76 @@ function makeCtx(item, s) {
   };
 }
 
+// A WC-kagyló valódi alaprajzi formája "D" alakú: a két oldala párhuzamos,
+// elöl pontosan félkörív zárja le. Az `inset` a peremtől befelé mért arány,
+// így ugyanezzel a formával rajzolható a belső (ülőke-)vonal is.
+function bowlD(c, u0, u1, vTop, vBot = 1) {
+  const r = (c.X(u1) - c.X(u0)) / 2;
+  const yArc = c.Y(vBot) - r;
+  return { r, yArc,
+    d: `M ${c.X(u0)} ${c.Y(vTop)} L ${c.X(u0)} ${yArc} `
+     + `A ${r} ${r} 0 0 0 ${c.X(u1)} ${yArc} L ${c.X(u1)} ${c.Y(vTop)}` };
+}
+
+// Kád-kontúrok. Az `inset` cm-ben befelé tolja a kontúrt (ezzel rajzoljuk a
+// perem belső vonalát), a koordináták cm-ben értendők, mint az alaprajz maga.
+function tubBox(c, inset) {
+  return { x0: c.X(0) + inset, x1: c.X(1) - inset, y0: c.Y(0) + inset, y1: c.Y(1) - inset };
+}
+
+// szabadon álló, ovális ("stadion" alakú) kád: a két rövid vég félkörív
+function tubOval(c, inset) {
+  const { x0, x1, y0, y1 } = tubBox(c, inset);
+  const r = Math.min((y1 - y0) / 2, (x1 - x0) / 2);
+  return `M ${x0 + r} ${y0} L ${x1 - r} ${y0} A ${r} ${r} 0 0 1 ${x1 - r} ${y1} `
+       + `L ${x0 + r} ${y1} A ${r} ${r} 0 0 1 ${x0 + r} ${y0} Z`;
+}
+
+// beépített kád, aminek az egyik (a faltól elforduló, jobb elülső) sarka
+// negyedkör — `rr` a negyedkör sugara cm-ben
+function tubCorner(c, inset, rr) {
+  const { x0, x1, y0, y1 } = tubBox(c, inset);
+  const r = Math.max(0, Math.min(rr, x1 - x0, y1 - y0));
+  return `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1 - r} `
+       + `A ${r} ${r} 0 0 1 ${x1 - r} ${y1} L ${x0} ${y1} Z`;
+}
+
 // --- az egyes tárgyak rajzjelei ---
 
 const SYMBOLS = {
   // szaniter
+  // Monoblokkos WC: szögletes tartály, lekerekített kagyló. A kontúr egyben
+  // rajzolódik (tartály + kagyló), hogy ne egy téglalapban ülő ellipszis
+  // legyen, hanem a valódi alaprajzi forma.
   wc(c) {
-    c.rect(0.05, 0, 0.95, 0.22);                 // tartály
-    c.ell(0.5, 0.6, 0.34, 0.26);                 // kagyló
-    c.ell(0.5, 0.58, 0.22, 0.16, { class: 'furn-line furn-faint' });
+    const b = bowlD(c, 0.04, 0.96, 0.20);
+    c.path(`M ${c.X(0)} ${c.Y(0)} L ${c.X(1)} ${c.Y(0)} L ${c.X(1)} ${c.Y(0.16)} `
+         + `L ${c.X(0.96)} ${c.Y(0.20)} L ${c.X(0.96)} ${b.yArc} `
+         + `A ${b.r} ${b.r} 0 0 1 ${c.X(0.04)} ${b.yArc} `
+         + `L ${c.X(0.04)} ${c.Y(0.20)} L ${c.X(0)} ${c.Y(0.16)} Z`);
+    c.line(0.04, 0.20, 0.96, 0.20);              // tartály eleje
+    c.path(bowlD(c, 0.16, 0.84, 0.28, 0.94).d + ' Z', { class: 'furn-line furn-faint' });
+  },
+  // Lekerekített (ovális) WC: a tartály hátsó sarkai is íveltek, a kagyló
+  // tojásdad — a leggyakoribb mai forma.
+  wckerek(c) {
+    const b = bowlD(c, 0.02, 0.98, 0.22);
+    const rc = 0.10 * (c.X(1) - c.X(0));         // a tartály lekerekített sarkai
+    c.path(`M ${c.X(0)} ${c.Y(0)} L ${c.X(1)} ${c.Y(0)} L ${c.X(1)} ${c.Y(0.22) - rc} `
+         + `A ${rc} ${rc} 0 0 1 ${c.X(1) - rc} ${c.Y(0.22)} `
+         + `L ${c.X(0.98)} ${c.Y(0.22)} L ${c.X(0.98)} ${b.yArc} `
+         + `A ${b.r} ${b.r} 0 0 1 ${c.X(0.02)} ${b.yArc} `
+         + `L ${c.X(0.02)} ${c.Y(0.22)} L ${c.X(0) + rc} ${c.Y(0.22)} `
+         + `A ${rc} ${rc} 0 0 1 ${c.X(0)} ${c.Y(0.22) - rc} Z`);
+    c.line(0.02, 0.22, 0.98, 0.22);              // tartály eleje
+    c.path(bowlD(c, 0.14, 0.86, 0.30, 0.95).d + ' Z', { class: 'furn-line furn-faint' });
+  },
+  // Fali (függesztett) WC: a tartály a falban van, csak a lekerekített kagyló
+  // látszik; a fal síkjánál egyenes a hátsó éle.
+  wcfali(c) {
+    c.path(bowlD(c, 0, 1, 0).d + ' Z');
+    c.line(0.20, 0.06, 0.80, 0.06, { class: 'furn-line furn-faint' });  // öblítőlap
+    c.path(bowlD(c, 0.14, 0.86, 0.12, 0.94).d + ' Z', { class: 'furn-line furn-faint' });
   },
   mosdo(c) {
     c.rect(0, 0, 1, 1, { rx: 6 });
@@ -64,6 +126,20 @@ const SYMBOLS = {
     c.rect(0, 0, 1, 1, { rx: 8 });
     c.rect(0.06, 0.12, 0.94, 0.88, { rx: 8 });   // belső kagyló
     c.ell(0.86, 0.5, 0.025, 0.055);              // lefolyó
+  },
+  // egyik sarka negyedkör (a fal felőli két él egyenes marad)
+  kadivessarok(c) {
+    const rr = Math.min(c.h * 0.85, c.w * 0.5);
+    c.path(tubCorner(c, 0, rr));
+    c.path(tubCorner(c, 6, rr - 6), { class: 'furn-line furn-faint' });  // perem belső éle
+    c.ell(0.12, 0.5, 0.02, 0.045);               // lefolyó a szemközti végen
+  },
+  // szabadon álló, ovális kád
+  kadovalis(c) {
+    c.path(tubOval(c, 0));
+    c.path(tubOval(c, 7), { class: 'furn-line furn-faint' });            // belső kagyló
+    c.ell(0.5, 0.5, 0.022, 0.045);               // lefolyó
+    c.line(0.16, 0.44, 0.16, 0.56, { class: 'furn-line furn-faint' });   // túlfolyó
   },
   zuhany(c) {
     c.rect(0, 0, 1, 1);
@@ -321,7 +397,10 @@ Object.assign(SYMBOLS, {
 });
 
 // ezeknél a rajzjel maga adja a körvonalat, a befoglaló téglalapot elhagyjuk
-const CUSTOM_BODY = new Set(['sarokkanape', 'puff', 'kerekasztal', 'bide', 'irodaiszek']);
+const CUSTOM_BODY = new Set([
+  'sarokkanape', 'puff', 'kerekasztal', 'bide', 'irodaiszek',
+  'wc', 'wckerek', 'wcfali', 'kadivessarok', 'kadovalis',
+]);
 export function hidesBody(type) { return CUSTOM_BODY.has(type); }
 
 export function hasSymbol(type) { return !!SYMBOLS[type]; }

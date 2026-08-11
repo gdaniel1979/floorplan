@@ -265,8 +265,9 @@ function furnitureSymbol(item, s) {
   const parts = furnitureSymbolParts(item, s);
   if (parts.length && hidesBody(item.type)) {
     const body = g.querySelector('.furniture-body');
-    if (body) { body.setAttribute('fill', 'transparent'); body.setAttribute('stroke', 'none'); }
-    if (parts[0]) parts[0].setAttribute('fill', furnitureColor(item));
+    if (body) body.classList.add('body-hidden');
+    // inline stílus, mert a .furn-line { fill: none } erősebb az attribútumnál
+    if (parts[0]) parts[0].style.fill = furnitureColor(item);
   }
   for (const part of parts) g.appendChild(part);
 

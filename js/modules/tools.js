@@ -12,7 +12,7 @@ import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom, setRoomHeight } from './rooms.js';
 import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall, openingClearances, setOpeningClearance } from './objects.js';
-import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint } from './furniture.js';
+import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint, wallSnapPosition } from './furniture.js';
 import { showToast } from './toast.js';
 import { repairWallNetwork } from './wallrepair.js';
 
@@ -72,8 +72,8 @@ const HINTS = {
   room: 'Kattints egy falakkal körbezárt terület belsejébe egy helyiség létrehozásához. V: kijelölés.',
   door: 'Kattints egy egyenes falra az ajtó elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
   window: 'Kattints egy egyenes falra az ablak elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
-  furniture: 'Kattints a rajzra a kiválasztott tárgy elhelyezéséhez. Utólag húzható (Shift: 1 cm-es lépték) vagy nyilakkal tologatható. Méret/forgatás a Kijelölt tárgy panelen. V: kijelölés.',
-  select: 'Kattints falra, helyiségre, nyílászáróra vagy bútorra a kijelöléshez; húzd a fogantyúkat. Húzás közben Shift: 1 cm-es lépték; kijelölt tárgyat a nyilak is tolnak (Shift: 10 cm). A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
+  furniture: 'Kattints a rajzra a kiválasztott tárgy elhelyezéséhez. Utólag húzható — fal közelében a széle a falsíkra tapad. Shift: 1 cm-es lépték, tapadás nélkül. Nyilakkal is tolható. Méret/forgatás/szín a Kijelölt tárgy panelen. V: kijelölés.',
+  select: 'Kattints falra, helyiségre, nyílászáróra vagy bútorra a kijelöléshez; húzd a fogantyúkat. Bútor fal közelében a falsíkra tapad. Húzás közben Shift: 1 cm-es lépték, tapadás nélkül; kijelölt tárgyat a nyilak is tolnak (Shift: 10 cm). A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
 };
 
 export function setTool(tool) {
@@ -783,11 +783,26 @@ function applyDrag(plan, p, shiftKey) {
     if (drag.kind === 'objCenter') moveObjectAlongWall(plan, obj, offset);
     else resizeObjectEdge(plan, obj, drag.kind === 'objP1' ? 'p1' : 'p2', offset);
   } else if (drag.kind === 'furniture') {
-    // Shift: finom (1 cm-es) lépték a szokásos 10 cm helyett
+    // Shift: finom (1 cm-es) lépték a szokásos 10 cm helyett, falhoz tapasztás
+    // nélkül — így pontosan oda tehető a tárgy, ahova akarjuk
     const step = shiftKey ? 1 : GRID_MINOR;
     const dx = Math.round((p.x - drag.start.x) / step) * step;
     const dy = Math.round((p.y - drag.start.y) / step) * step;
-    moveFurniture(plan, drag.item, drag.orig.x + dx, drag.orig.y + dy);
+    let nx = drag.orig.x + dx, ny = drag.orig.y + dy;
+
+    if (!shiftKey) {
+      // fal közelében a tárgy éle a falsíkra ugrik (a rács így sem akadályozza
+      // a hézagmentes elhelyezést)
+      const snapped = wallSnapPosition(plan, drag.item, nx, ny, Math.max(30, 14 / getScale()));
+      if (snapped) {
+        nx = snapped.x; ny = snapped.y;
+        const s = getScale();
+        getOverlay().appendChild(el('circle', {
+          cx: nx, cy: ny, r: 7 / s, class: 'snap-hint', 'stroke-width': 2 / s,
+        }));
+      }
+    }
+    moveFurniture(plan, drag.item, nx, ny);
   } else if (drag.kind === 'furnitureRotate') {
     const item = drag.item;
     const raw = Math.atan2(p.y - item.y, p.x - item.x) * 180 / Math.PI + 90;

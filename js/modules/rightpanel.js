@@ -6,9 +6,44 @@ import { refreshViewport } from './canvas.js';
 const WIDTH_KEY = 'floorplan.rightPanelWidth';
 const MIN_W = 200, MAX_W = 480;
 
+const COLLAPSED_KEY = 'floorplan.rightPanelCollapsed';
+
 export function initRightPanel() {
   initTabs();
   initResizer();
+  initCollapse();
+}
+
+// Becsukás/kinyitás: a sáv keskeny csíkká zsugorodik, hogy a gomb elérhető
+// maradjon. A nyíl a MŰVELETET mutatja: nyitva ">>" (becsukás jobbra),
+// becsukva "<<" (kinyitás balra). Az állapot megjegyződik.
+export function setCollapsed(collapsed) {
+  const app = document.getElementById('app');
+  const btn = document.getElementById('right-panel-toggle');
+  if (!app || !btn) return;
+  if (app.classList.contains('rpanel-collapsed') === collapsed) return; // nincs változás
+
+  app.classList.toggle('rpanel-collapsed', collapsed);
+  btn.textContent = collapsed ? '«' : '»';
+  btn.setAttribute('aria-expanded', String(!collapsed));
+  btn.title = collapsed ? 'Sáv kinyitása' : 'Sáv becsukása';
+  refreshViewport(); // a vászon arányát a sáv szélessége is befolyásolja
+  try { localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0'); } catch { /* nem elérhető */ }
+}
+
+function initCollapse() {
+  const btn = document.getElementById('right-panel-toggle');
+  const app = document.getElementById('app');
+  if (!btn || !app) return;
+
+  let start = false;
+  try { start = localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { /* nincs mentett érték */ }
+  // a kiinduló állapot beállítása: a setCollapsed csak VÁLTOZÁSKOR lép, ezért
+  // az alapértelmezett (nyitott) állapotnál is frissítjük a gomb feliratát
+  if (start) setCollapsed(true);
+  else { btn.textContent = '»'; btn.title = 'Sáv becsukása'; }
+
+  btn.addEventListener('click', () => setCollapsed(!app.classList.contains('rpanel-collapsed')));
 }
 
 function initTabs() {
@@ -17,6 +52,10 @@ function initTabs() {
   tabs.addEventListener('click', e => {
     const btn = e.target.closest('button[data-tab]');
     if (!btn) return;
+    // becsukott sávon a fülek felirata is látszik — ilyenkor a kattintás
+    // kinyitja a sávot ÉS a kért fülre vált (különben csak egy rejtett
+    // panelt kapcsolna, látható hatás nélkül)
+    setCollapsed(false);
     activateTab(btn.dataset.tab);
   });
 }

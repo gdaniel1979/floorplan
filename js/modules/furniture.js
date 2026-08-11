@@ -29,11 +29,15 @@ export const DEFAULT_COLORS = {
 // paletta áttekinthetőségéhez — ezért a kategóriák száma nem változott.
 export const CATALOG = {
   szaniter: [
-    { group: 'Szaniter', type: 'wc', label: 'WC', w: 40, h: 65 },
+    { group: 'Szaniter', type: 'wc', label: 'WC (monoblokkos)', w: 40, h: 68 },
+    { group: 'Szaniter', type: 'wckerek', label: 'WC (lekerekített)', w: 38, h: 68 },
+    { group: 'Szaniter', type: 'wcfali', label: 'WC (fali)', w: 37, h: 55 },
     { group: 'Szaniter', type: 'mosdo', label: 'Mosdó', w: 60, h: 45 },
     { group: 'Szaniter', type: 'duplamosdo', label: 'Dupla mosdó', w: 120, h: 50 },
     { group: 'Szaniter', type: 'bide', label: 'Bidé', w: 40, h: 60 },
-    { group: 'Szaniter', type: 'kad', label: 'Kád', w: 170, h: 75 },
+    { group: 'Szaniter', type: 'kad', label: 'Kád (egyenes)', w: 170, h: 75 },
+    { group: 'Szaniter', type: 'kadivessarok', label: 'Kád (íves sarokkal)', w: 170, h: 75 },
+    { group: 'Szaniter', type: 'kadovalis', label: 'Szabadon álló kád (ovális)', w: 170, h: 80 },
     { group: 'Szaniter', type: 'zuhany', label: 'Zuhanytálca', w: 90, h: 90 },
     { group: 'Szaniter', type: 'zuhanykabin', label: 'Zuhanykabin', w: 90, h: 90 },
     { group: 'Gépek', type: 'mosogep', label: 'Mosógép', w: 60, h: 60 },
@@ -196,6 +200,47 @@ export function setFurnitureSize(plan, item, w, h) {
   if (w > 0) item.w = round1(w);
   if (h > 0) item.h = round1(h);
   notify();
+}
+
+// A bútor fél-kiterjedése egy adott irány mentén (elforgatást is figyelembe
+// véve): ennyire lóg ki a középpontjától abba az irányba.
+function halfExtent(item, u) {
+  const rad = item.rotation * Math.PI / 180;
+  const ex = { x: Math.cos(rad), y: Math.sin(rad) };
+  const ey = { x: -Math.sin(rad), y: Math.cos(rad) };
+  return Math.abs(item.w / 2 * (ex.x * u.x + ex.y * u.y))
+       + Math.abs(item.h / 2 * (ey.x * u.x + ey.y * u.y));
+}
+
+// Falhoz tapasztás: ha a bútor a húzás során `tol`-on belülre kerül egy fal
+// SÍKJÁHOZ, a középpontját úgy toljuk el a fal normálisa mentén, hogy az éle
+// pontosan a falsíkra kerüljön. Enélkül a 10 cm-es rács miatt szinte sosem
+// lehet hézagmentesen falhoz tenni egy tárgyat.
+//
+// Csak azokat a falakat nézzük, amik mentén a tárgy tényleg ott van (a fal
+// hosszára vetítve átfedik egymást), és a legközelebbi illesztést választjuk.
+export function wallSnapPosition(plan, item, x, y, tol) {
+  let best = null;
+  for (const w of plan.walls) {
+    if (w.bulge) continue;
+    const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+    if (!a || !b) continue;
+    const len = G.dist(a, b);
+    if (len < 1) continue;
+
+    const d = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+    const n = { x: -d.y, y: d.x };
+    const along = (x - a.x) * d.x + (y - a.y) * d.y;
+    if (along < -halfExtent(item, d) || along > len + halfExtent(item, d)) continue;
+
+    const perp = (x - a.x) * n.x + (y - a.y) * n.y;
+    const target = (perp >= 0 ? 1 : -1) * (w.thickness / 2 + halfExtent(item, n));
+    const delta = target - perp;
+    if (Math.abs(delta) > tol) continue;
+    if (!best || Math.abs(delta) < Math.abs(best.delta)) best = { delta, n };
+  }
+  if (!best) return null;
+  return { x: round1(x + best.n.x * best.delta), y: round1(y + best.n.y * best.delta) };
 }
 
 export function setFurnitureRotation(plan, item, deg) {

@@ -32,7 +32,15 @@ export const LAYER_GROUPS = [
       { key: 'szaniter', label: 'Szaniter' },
       { key: 'konyha', label: 'Konyha' },
       { key: 'butor', label: 'Bútorok' },
-      { key: 'epulet', label: 'Épületelemek' },
+    ],
+  },
+  // Az épületelemek (lépcső, oszlop, kémény, radiátor, kandalló, akna) a
+  // lakás ÁLLANDÓ részei, nem berendezés — ezért külön főcsoportban vannak,
+  // hogy a bútorok elrejtése ne tüntesse el őket is.
+  {
+    key: 'building', label: 'Épületelemek',
+    children: [
+      { key: 'epulet', label: 'Lépcső, oszlop, gépészet' },
     ],
   },
   {
