@@ -10,7 +10,7 @@ import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
 import { objectGeometry, objectHeight, openingClearances, doorType } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
-import { rotatedPoint, rotateHandlePoint, isStair } from './furniture.js';
+import { rotatedPoint, rotateHandlePoint, isStair, stairShape, stairArmW } from './furniture.js';
 import { computeRoomSurfaces } from './surfaces.js';
 
 export function renderAll() {
@@ -272,44 +272,155 @@ function furnitureSymbol(item, s) {
 // külön elem lenne.
 function appendStairDetails(g, item, s) {
   const steps = Math.max(2, item.steps || 10);
-  const x0 = item.x - item.w / 2, x1 = item.x + item.w / 2;
-  const yTop = item.y - item.h / 2, yBot = item.y + item.h / 2;
-  const tread = item.h / steps;
+  const shape = stairShape(item);
+  const plan = stairLayout(item, shape);   // karok + pihenő, a tárgy saját rendszerében
+  const up = item.dir !== 'down';
 
-  // fokélek (a két szélső a lépcső kontúrja, azt nem duplázzuk)
-  for (let i = 1; i < steps; i++) {
-    const y = yTop + tread * i;
-    g.appendChild(el('line', {
-      x1: x0, y1: y, x2: x1, y2: y, class: 'stair-tread', 'stroke-width': 1 / s,
+  // L/U alaknál a befoglaló téglalap helyett a valódi kontúr látszik
+  if (shape !== 'straight') {
+    g.querySelector('.furniture-body')?.remove(); // a téglalap helyett a valódi kontúr
+    g.appendChild(el('path', {
+      d: polygonToPathD(plan.outline.map(p => P(item, p))),
+      class: 'furniture-body', 'data-furniture': item.id, 'stroke-width': 1 / s,
     }));
+    for (const rect of plan.landings) {
+      g.appendChild(el('path', {
+        d: polygonToPathD(rect.map(p => P(item, p))),
+        class: 'stair-landing', 'stroke-width': 1 / s,
+      }));
+    }
   }
 
-  // járóvonal: lentről fel halad, ha FEL, különben fordítva
-  const up = item.dir !== 'down';
-  const from = { x: item.x, y: up ? yBot - tread / 2 : yTop + tread / 2 };
-  const to = { x: item.x, y: up ? yTop + tread / 2 : yBot - tread / 2 };
-  g.appendChild(el('line', {
-    x1: from.x, y1: from.y, x2: to.x, y2: to.y, class: 'stair-walkline', 'stroke-width': 1.2 / s,
-  }));
-  g.appendChild(el('circle', { cx: from.x, cy: from.y, r: 3 / s, class: 'stair-start' }));
+  // a fokokat a karok hossza arányában osztjuk szét (a pihenő nem kap fokélt)
+  const total = plan.flights.reduce((sum, f) => sum + f.len, 0) || 1;
+  let left = steps;
+  plan.flights.forEach((f, i) => {
+    const n = i === plan.flights.length - 1 ? left : Math.max(1, Math.round(steps * f.len / total));
+    left -= n;
+    f.steps = Math.max(1, n);
+  });
 
-  // nyílhegy az érkezésnél
-  const dy = up ? 1 : -1;              // a nyíl "hátrafelé" mutató iránya
-  const a = 6 / s, b = 4 / s;
+  // fokélek: a kar irányára merőlegesen, a kar teljes szélességében
+  for (const f of plan.flights) {
+    const tread = f.len / f.steps;
+    for (let i = 1; i < f.steps; i++) {
+      const c = { x: f.from.x + f.dir.x * tread * i, y: f.from.y + f.dir.y * tread * i };
+      const a = P(item, { x: c.x + f.side.x * f.width / 2, y: c.y + f.side.y * f.width / 2 });
+      const b = P(item, { x: c.x - f.side.x * f.width / 2, y: c.y - f.side.y * f.width / 2 });
+      g.appendChild(el('line', {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'stair-tread', 'stroke-width': 1 / s,
+      }));
+    }
+  }
+
+  // Járóvonal a karok közepén végig, a pihenőn át. A `walk` lánc a lefelé
+  // menetirányban van megadva, ezért FEL iránynál MEGFORDÍTJUK: az indulópont
+  // kerüljön a lenti végre, a nyíl pedig oda, ahova felérünk.
+  const path = plan.walk.map(p => P(item, p));
+  const pts = up ? [...path].reverse() : path;
   g.appendChild(el('path', {
-    d: `M ${to.x} ${to.y} L ${to.x - b} ${to.y + a * dy} L ${to.x + b} ${to.y + a * dy} Z`,
+    d: 'M ' + pts.map(p => `${p.x} ${p.y}`).join(' L '),
+    class: 'stair-walkline', fill: 'none', 'stroke-width': 1.2 / s,
+  }));
+  g.appendChild(el('circle', { cx: pts[0].x, cy: pts[0].y, r: 3 / s, class: 'stair-start' }));
+
+  // nyílhegy az érkezésnél, az utolsó szakasz irányában
+  const tip = pts[pts.length - 1], prev = pts[pts.length - 2];
+  const d = G.unit(prev, tip);
+  const a = 7 / s, b = 4.5 / s;
+  g.appendChild(el('path', {
+    d: `M ${tip.x} ${tip.y} `
+     + `L ${tip.x - d.x * a - d.y * b} ${tip.y - d.y * a + d.x * b} `
+     + `L ${tip.x - d.x * a + d.y * b} ${tip.y - d.y * a - d.x * b} Z`,
     class: 'stair-arrow',
   }));
 
   if (ui.layerVisible.furnitureLabels) {
+    const c = P(item, plan.labelAt);
     const t = el('text', {
-      x: item.x + item.w / 2 - 6 / s, y: (yTop + yBot) / 2,
-      class: 'stair-label', 'font-size': 10 / s,
-      'text-anchor': 'end', 'dominant-baseline': 'middle',
+      x: c.x, y: c.y, class: 'stair-label', 'font-size': 10 / s,
+      'text-anchor': 'middle', 'dominant-baseline': 'middle',
     });
     t.textContent = `${up ? 'FEL' : 'LE'} ${steps} db`;
     g.appendChild(t);
   }
+}
+
+// a tárgy saját (középre igazított) rendszeréből világ-koordinátába
+function P(item, p) { return { x: item.x + p.x, y: item.y + p.y }; }
+
+// A lépcső geometriája a tárgy saját rendszerében (origó a közepén, x jobbra,
+// y lefelé). A járóvonal mindig a LEFELÉ menetirányban (növekvő y) van
+// megadva; a FEL/LE csak megfordítja.
+//
+//   straight – egy kar, a teljes befoglalóban
+//   L        – negyedfordulós: függőleges kar + sarok-pihenő + vízszintes kar
+//   U        – félfordulós: két párhuzamos kar, köztük orsótér, alul pihenő
+function stairLayout(item, shape) {
+  const w = item.w, h = item.h;
+  const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+
+  if (shape === 'straight') {
+    return {
+      outline: null, landings: [],
+      flights: [{
+        from: { x: 0, y: y0 }, dir: { x: 0, y: 1 }, len: h,
+        side: { x: 1, y: 0 }, width: w,
+      }],
+      walk: [{ x: 0, y: y0 }, { x: 0, y: y1 }],
+      labelAt: { x: 0, y: 0 },
+    };
+  }
+
+  const aw = stairArmW(item);
+
+  if (shape === 'L') {
+    const turnY = y1 - aw;              // a pihenő felső éle
+    return {
+      outline: [
+        { x: x0, y: y0 }, { x: x0 + aw, y: y0 }, { x: x0 + aw, y: turnY },
+        { x: x1, y: turnY }, { x: x1, y: y1 }, { x: x0, y: y1 },
+      ],
+      landings: [[
+        { x: x0, y: turnY }, { x: x0 + aw, y: turnY },
+        { x: x0 + aw, y: y1 }, { x: x0, y: y1 },
+      ]],
+      flights: [
+        { from: { x: x0 + aw / 2, y: y0 }, dir: { x: 0, y: 1 }, len: turnY - y0,
+          side: { x: 1, y: 0 }, width: aw },
+        { from: { x: x0 + aw, y: y1 - aw / 2 }, dir: { x: 1, y: 0 }, len: x1 - x0 - aw,
+          side: { x: 0, y: 1 }, width: aw },
+      ],
+      walk: [
+        { x: x0 + aw / 2, y: y0 }, { x: x0 + aw / 2, y: y1 - aw / 2 }, { x: x1, y: y1 - aw / 2 },
+      ],
+      labelAt: { x: (x0 + aw + x1) / 2, y: (y0 + turnY) / 2 },
+    };
+  }
+
+  // U: a két kar a két szélen, közte orsótér; a pihenő alul, teljes szélességben
+  const turnY = y1 - aw;
+  return {
+    outline: [
+      { x: x0, y: y0 }, { x: x0 + aw, y: y0 }, { x: x0 + aw, y: turnY },
+      { x: x1 - aw, y: turnY }, { x: x1 - aw, y: y0 }, { x: x1, y: y0 },
+      { x: x1, y: y1 }, { x: x0, y: y1 },
+    ],
+    landings: [[
+      { x: x0, y: turnY }, { x: x1, y: turnY }, { x: x1, y: y1 }, { x: x0, y: y1 },
+    ]],
+    flights: [
+      { from: { x: x0 + aw / 2, y: y0 }, dir: { x: 0, y: 1 }, len: turnY - y0,
+        side: { x: 1, y: 0 }, width: aw },
+      { from: { x: x1 - aw / 2, y: turnY }, dir: { x: 0, y: -1 }, len: turnY - y0,
+        side: { x: 1, y: 0 }, width: aw },
+    ],
+    walk: [
+      { x: x0 + aw / 2, y: y0 }, { x: x0 + aw / 2, y: y1 - aw / 2 },
+      { x: x1 - aw / 2, y: y1 - aw / 2 }, { x: x1 - aw / 2, y: y0 },
+    ],
+    labelAt: { x: 0, y: (y0 + turnY) / 2 },
+  };
 }
 
 // a kijelölt bútor panelje (típus + méret + forgatás) — csak kijelölt
@@ -334,13 +445,23 @@ function updateFurnitureOptionsPanel(plan) {
 
   // a lépcső-vezérlők csak lépcsőnél látszanak
   const stair = isStair(item);
+  const shapeRow = document.getElementById('stair-shape-row');
+  const armRow = document.getElementById('stair-arm-row');
   const stepsRow = document.getElementById('stair-steps-row');
   const dirRow = document.getElementById('stair-dir-row');
+  const shape = stair ? stairShape(item) : 'straight';
+  if (shapeRow) shapeRow.hidden = !stair;
   if (stepsRow) stepsRow.hidden = !stair;
   if (dirRow) dirRow.hidden = !stair;
+  // a kar szélessége csak kanyarodó alaknál értelmezett
+  if (armRow) armRow.hidden = !stair || shape === 'straight';
   if (stair) {
+    const shapeSelect = document.getElementById('stair-shape');
+    const armInput = document.getElementById('stair-arm');
     const stepsInput = document.getElementById('stair-steps');
     const dirSelect = document.getElementById('stair-dir');
+    if (shapeSelect && document.activeElement !== shapeSelect) shapeSelect.value = shape;
+    if (armInput && document.activeElement !== armInput) armInput.value = Math.round(stairArmW(item));
     if (stepsInput && document.activeElement !== stepsInput) stepsInput.value = item.steps ?? 10;
     if (dirSelect && document.activeElement !== dirSelect) dirSelect.value = item.dir === 'down' ? 'down' : 'up';
   }

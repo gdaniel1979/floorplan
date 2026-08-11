@@ -62,7 +62,9 @@ export function addFurniture(plan, category, type, p) {
   };
   if (type === 'lepcso') {
     item.steps = Math.max(2, Math.round(def.h / STAIR_TREAD));
-    item.dir = 'up'; // 'up' = FEL, 'down' = LE
+    item.dir = 'up';        // 'up' = FEL, 'down' = LE
+    item.shape = 'straight'; // 'straight' | 'L' | 'U'
+    item.armW = def.w;       // a kar (karok) szélessége L/U alaknál
   }
   plan.furniture.push(item);
   notify();
@@ -80,6 +82,30 @@ export function setStairSteps(plan, item, steps) {
 export function setStairDir(plan, item, dir) {
   if (!isStair(item)) return;
   item.dir = dir === 'down' ? 'down' : 'up';
+  notify();
+}
+
+export function stairShape(item) {
+  return item?.shape === 'L' || item?.shape === 'U' ? item.shape : 'straight';
+}
+
+// a kar szélessége L/U alaknál; régi (alak nélküli) lépcsőnél a teljes szélesség
+export function stairArmW(item) {
+  const w = item.armW > 0 ? item.armW : item.w;
+  // a karnak el kell férnie: U-nál kétszer, plusz maradjon orsótér
+  const max = stairShape(item) === 'U' ? item.w / 2 : item.w;
+  return Math.max(20, Math.min(max, w));
+}
+
+export function setStairShape(plan, item, shape) {
+  if (!isStair(item)) return;
+  item.shape = shape === 'L' || shape === 'U' ? shape : 'straight';
+  notify();
+}
+
+export function setStairArmW(plan, item, armW) {
+  if (!isStair(item) || !(armW >= 20)) return;
+  item.armW = round1(armW);
   notify();
 }
 

@@ -717,6 +717,14 @@ input.rename {
 
 /* --- lépcső-jelölés: fokélek, járóvonal, indulópont, érkező nyíl --- */
 
+/* pihenő (L/U alaknál): halvány kitöltés, hogy elváljon a fokoktól */
+.stair-landing {
+  fill: rgba(77, 88, 103, 0.10);
+  stroke: #4d5867;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
 .stair-tread {
   stroke: #4d5867;
   fill: none;

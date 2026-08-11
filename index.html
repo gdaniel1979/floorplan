@@ -197,6 +197,18 @@
             <label for="furniture-sel-rotation">Forgatás (°)</label>
             <input type="number" id="furniture-sel-rotation" min="0" max="359" step="1">
           </div>
+          <div class="control-row" id="stair-shape-row" hidden>
+            <label for="stair-shape">Lépcső alakja</label>
+            <select id="stair-shape">
+              <option value="straight" selected>Egyenes (egykarú)</option>
+              <option value="L">L alakú (negyedfordulós)</option>
+              <option value="U">U alakú (félfordulós)</option>
+            </select>
+          </div>
+          <div class="control-row" id="stair-arm-row" hidden>
+            <label for="stair-arm">Kar szélessége (cm)</label>
+            <input type="number" id="stair-arm" min="20" step="1">
+          </div>
           <div class="control-row" id="stair-steps-row" hidden>
             <label for="stair-steps">Fokok száma</label>
             <input type="number" id="stair-steps" min="2" max="60" step="1">

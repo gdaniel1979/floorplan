@@ -5,7 +5,7 @@ import { setTool } from './tools.js';
 import { getPlan, wallById, setWallInteriorLength, setWallThickness } from './plan.js';
 import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
-import { CATALOG, LAYER_LABELS, setFurnitureSize, setFurnitureRotation, clearFurniture, setStairSteps, setStairDir } from './furniture.js';
+import { CATALOG, LAYER_LABELS, setFurnitureSize, setFurnitureRotation, clearFurniture, setStairSteps, setStairDir, setStairShape, setStairArmW } from './furniture.js';
 import { setRoomHeight } from './rooms.js';
 import { LAYER_GROUPS, setLayer, setGroup, groupState } from './layers.js';
 import { resizeObject, setObjectHeight } from './objects.js';
@@ -359,6 +359,25 @@ function initFurnitureControls() {
     if (!item || !(v > 0)) return;
     const before = snapshot();
     setFurnitureSize(getPlan(), item, null, v);
+    checkpoint(before);
+  });
+
+  const shapeSelect = document.getElementById('stair-shape');
+  shapeSelect?.addEventListener('change', () => {
+    const item = selectedFurniture();
+    if (!item) return;
+    const before = snapshot();
+    setStairShape(getPlan(), item, shapeSelect.value);
+    checkpoint(before);
+  });
+
+  const armInput = document.getElementById('stair-arm');
+  armInput?.addEventListener('change', () => {
+    const item = selectedFurniture();
+    const v = parseFloat(armInput.value);
+    if (!item || !(v >= 20)) return;
+    const before = snapshot();
+    setStairArmW(getPlan(), item, v);
     checkpoint(before);
   });
 
