@@ -25,6 +25,7 @@
         <button id="undo-btn" class="icon-btn-lg" title="Visszavonás (Ctrl+Z)" disabled>↶</button>
         <button id="redo-btn" class="icon-btn-lg" title="Ismétlés (Ctrl+Y)" disabled>↷</button>
         <button id="fit-view-btn" class="icon-btn-lg" title="Rajz igazítása a vászonhoz">⛶</button>
+        <button id="view3d-btn" class="icon-btn-lg" title="3D nézet a teljes alaprajzról">3D</button>
       </div>
       <span id="property-title" class="muted">– nincs ingatlan –</span>
     </header>
@@ -296,6 +297,25 @@
         <button id="pdf-go" class="btn primary">Nyomtatás…</button>
       </div>
     </div>
+  </div>
+
+  <!-- 3D nézet: teljes képernyős réteg a rajz fölött. A réteg-kapcsolók
+       ugyanazt az ui.layerVisible-t állítják, mint a Rétegek panel. -->
+  <div id="view3d" hidden>
+    <div id="view3d-bar">
+      <span class="v3d-title">3D nézet</span>
+      <label><input type="checkbox" data-v3d-layer="szaniter" checked> Szaniter</label>
+      <label><input type="checkbox" data-v3d-layer="konyha" checked> Konyha</label>
+      <label><input type="checkbox" data-v3d-layer="butor" checked> Bútorok</label>
+      <label><input type="checkbox" data-v3d-layer="epulet" checked> Épületelemek</label>
+      <label title="A falak derékmagasságban elvágva, hogy a berendezés kívülről is látszódjon"><input type="checkbox" id="view3d-lowwalls" checked> Alacsony falak</label>
+      <label class="v3d-slider" title="A falak áttetszősége">Fal-áttetszőség
+        <input type="range" id="view3d-opacity" min="10" max="100" step="5" value="45">
+      </label>
+      <span class="v3d-hint">Bal egér: forgatás · jobb egér: mozgatás · görgő: nagyítás</span>
+      <button id="view3d-close" class="btn">Bezárás (Esc)</button>
+    </div>
+    <div id="view3d-canvas"></div>
   </div>
 </body>
 </html>
