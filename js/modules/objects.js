@@ -32,7 +32,10 @@ export function addObject(plan, wallId, kind, offset, defaults = {}) {
     obj.flipSide = !!defaults.flipSide;
     obj.doorType = defaults.doorType || 'swing';
     obj.leafCount = defaults.leafCount === 2 ? 2 : 1;
+    // ha nincs fölötte fal (pl. zuhanykabin üvegajtaja), a nyílás a plafonig ér
+    obj.noLintel = !!defaults.noLintel;
   } else if (kind === 'window') {
+    obj.windowType = defaults.windowType === 'fix' ? 'fix' : 'openable';
     obj.sashCount = defaults.sashCount === 2 ? 2 : 1;
     obj.flipSide = !!defaults.flipSide;
   }
@@ -76,6 +79,11 @@ export function setObjectHeight(plan, obj, height) {
 export function doorType(obj) {
   if (obj.doorType) return obj.doorType;
   return obj.withLeaf === false ? 'opening' : 'swing';
+}
+
+// az ablak fajtája; a régi terveken minden ablak nyitható volt
+export function windowType(obj) {
+  return obj.windowType === 'fix' ? 'fix' : 'openable';
 }
 
 // egy nyílászáró magassága, a régi (magasság nélkül mentett) tervekre is

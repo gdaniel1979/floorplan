@@ -8,7 +8,7 @@ import { getPlan, nodeById, wallById, wallLengthOf, wallInteriorLengthOf, endDed
 import * as G from './geometry.js';
 import { ui } from './uistate.js';
 import { getRoomTrace, polygonToPathD } from './rooms.js';
-import { objectGeometry, objectHeight, openingClearances, doorType } from './objects.js';
+import { objectGeometry, objectHeight, openingClearances, doorType, windowType } from './objects.js';
 import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } from './exterior.js';
 import { rotatedPoint, rotateHandlePoint, isStair, stairShape, stairArmW, furnitureColor, furnitureClearances } from './furniture.js';
 import { furnitureSymbolParts, hasSymbol, hidesBody } from './symbols.js';
@@ -515,6 +515,10 @@ function syncDoorControls(door) {
   if (leafCountSelect && document.activeElement !== leafCountSelect) {
     leafCountSelect.value = String(door ? (door.leafCount === 2 ? 2 : 1) : ui.doorLeafCount);
   }
+  const noLintelBox = document.getElementById('door-no-lintel');
+  if (noLintelBox && document.activeElement !== noLintelBox) {
+    noLintelBox.checked = door ? !!door.noLintel : ui.doorNoLintel;
+  }
   if (flipHingeBtn) flipHingeBtn.classList.toggle('active', door ? !!door.flipHinge : ui.doorFlipHinge);
   if (flipSideBtn) flipSideBtn.classList.toggle('active', door ? !!door.flipSide : ui.doorFlipSide);
   syncSizeInput('door-width', door ? Math.round(door.width) : ui.doorWidth);
@@ -533,6 +537,13 @@ function syncWindowControls(win) {
   const sashSelect = document.getElementById('window-sash-count');
   const flipSideBtn = document.getElementById('window-flip-side');
   const sashCount = win ? win.sashCount : ui.windowSashCount;
+
+  const kindSelect = document.getElementById('window-kind');
+  const kind = win ? windowType(win) : ui.windowType;
+  if (kindSelect && document.activeElement !== kindSelect) kindSelect.value = kind;
+  // fix üvegezésnél a nyitás iránya értelmezhetetlen
+  const flipRow = document.getElementById('window-flip-row');
+  if (flipRow) flipRow.hidden = kind === 'fix';
   if (sashSelect && document.activeElement !== sashSelect) sashSelect.value = String(sashCount);
   if (flipSideBtn) flipSideBtn.classList.toggle('active', win ? !!win.flipSide : ui.windowFlipSide);
   syncSizeInput('window-width', win ? Math.round(win.width) : ui.windowWidth);
@@ -739,7 +750,10 @@ function objectSymbol(obj, geo, s) {
       d: openingRevealPathD(geo), class: 'window-fill', 'data-object': obj.id, 'stroke-width': 1.5 / s,
     }));
 
+    const fix = windowType(obj) === 'fix';
     const side = obj.flipSide ? -1 : 1;
+
+    // osztás (középső tok) két szárnynál / két táblánál
     if (obj.sashCount === 2) {
       const mA = { x: geo.center.x + n.x * half, y: geo.center.y + n.y * half };
       const mB = { x: geo.center.x - n.x * half, y: geo.center.y - n.y * half };
@@ -747,6 +761,16 @@ function objectSymbol(obj, geo, s) {
         x1: mA.x, y1: mA.y, x2: mB.x, y2: mB.y,
         class: 'window-mullion', 'data-object': obj.id, 'stroke-width': 1.5 / s,
       }));
+    }
+
+    if (fix) {
+      // FIX (nem nyitható) üvegezés: nincs nyitás-átló, csak maga az üveg
+      // vonala a fal tengelyében — így ránézésre elkülönül a nyithatótól
+      g.appendChild(el('line', {
+        x1: geo.p1.x, y1: geo.p1.y, x2: geo.p2.x, y2: geo.p2.y,
+        class: 'window-glass', 'data-object': obj.id, 'stroke-width': 1.6 / s,
+      }));
+    } else if (obj.sashCount === 2) {
       g.appendChild(el('path', {
         d: sashDiagonal(geo.p1, geo.center, n, half, side),
         class: 'window-sash', 'data-object': obj.id, 'stroke-width': 1.2 / s,

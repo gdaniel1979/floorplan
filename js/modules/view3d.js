@@ -27,8 +27,8 @@ const CATEGORY_LAYERS = ['szaniter', 'konyha', 'butor', 'epulet'];
 // is belátható (teljes magasságú falaknál csak felülről lehetne belesni)
 const LOW_WALL_H = 110;
 const STAIR_RISER = 17.5;    // cm – egy fok fellépése (bejárati lépcső magasságához)
-// a falak áttetszőek, hogy a berendezés a szemközti helyiségekben is látszódjon
-const WALL_OPACITY = 0.45;
+// a KAMERA FELŐLI falak áttetszősége (a hátsó falak tömörek maradnak)
+const WALL_OPACITY = 0.2;
 
 // A bútorok MAGASSÁGA (cm) — az alaprajz csak alapterületet tárol, a 3D-hez
 // típusonként kell egy jellemző magasság. Ami nincs a listában, a kategória
@@ -49,11 +49,14 @@ const FURNITURE_HEIGHT = {
 };
 const CATEGORY_HEIGHT = { szaniter: 85, konyha: 90, butor: 80, epulet: 100 };
 
-let renderer, scene, camera, controls, container, model;
+let renderer, scene, camera, controls, container, model, sun, fill;
 let raf = null, needsRebuild = true;
 let lowWalls = false;
-let wallMat = null;
+let wallOpaqueMat = null, wallFadeMat = null;
 let wallOpacity = WALL_OPACITY;
+let fadeWalls = [];        // falanként: a darabjai + a fal síkja (halványításhoz)
+let avatar = null;         // az emberke: ő a nézet középpontja
+let planLevels = null;     // az utolsó felépítés padlószintjei (az emberke ehhez igazodik)
 
 export function initView3d() {
   document.getElementById('view3d-btn').addEventListener('click', open);
@@ -121,17 +124,29 @@ function ensureRenderer() {
   camera = new THREE.PerspectiveCamera(45, 1, 10, 100000);
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.maxPolarAngle = Math.PI / 2 - 0.02;   // ne lehessen a padló alá fordulni
 
-  scene.add(new THREE.HemisphereLight('#ffffff', '#8899aa', 2.1));
-  const sun = new THREE.DirectionalLight('#ffffff', 1.4);
-  sun.position.set(-700, 1200, 600);
+  scene.add(new THREE.HemisphereLight('#ffffff', '#d5dbe2', 1.0));
+  sun = new THREE.DirectionalLight('#fff4e2', 2.2);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0002;
+  sun.shadow.normalBias = 2;   // cm – vékony falaknál ez tünteti el az árnyék-szemcsét
   scene.add(sun);
+  scene.add(sun.target);
 
+  // derítőfény a néző felől, árnyék NÉLKÜL: ettől marad világos a felénk néző
+  // falfelület is, miközben az árnyékokat egyedül a nap rajzolja
+  fill = new THREE.DirectionalLight('#ffffff', 0.55);
+  scene.add(fill);
+
+  initAvatarDrag();
   window.addEventListener('resize', () => { if (!overlay().hidden) resize(); });
 }
 
@@ -148,6 +163,8 @@ function start() {
   const tick = () => {
     raf = requestAnimationFrame(tick);
     controls.update();
+    faceCamera();
+    updateWallFade();
     renderer.render(scene, camera);
   };
   tick();
@@ -165,6 +182,7 @@ function rebuild() {
   if (model) {
     scene.remove(model);
     disposeTree(model);
+    fadeWalls = [];
   }
   const plan = getPlan();
   model = new THREE.Group();
@@ -172,20 +190,37 @@ function rebuild() {
   const wallH = lowWalls ? Math.min(LOW_WALL_H, levels.ceiling) : levels.ceiling;
 
   addFloors(plan, model, levels);
-  addWalls(plan, model, wallH);
-  addOpenings(plan, model, wallH);
+  addWalls(plan, model, wallH, levels);
+  addOpenings(plan, model, wallH, levels);
   addFurniture(plan, model, levels);
 
-  // a rajz origója helyett a lakás közepe legyen a forgatás középpontja
+  scene.add(model);
+  planLevels = levels;
+
   const box = new THREE.Box3().setFromObject(model);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
-  scene.add(model);
+  const span = Math.max(size.x, size.z, 300);
 
-  const dist = Math.max(size.x, size.z, 300) * 1.4;
-  camera.position.set(center.x + dist * 0.6, center.y + dist * 0.8, center.z + dist);
-  controls.target.copy(center);
-  controls.update();
+  // A nap a HÁTSÓ falak felől süt: így az árnyékok a néző felé, a nyitott
+  // padlófelületre esnek, ahol tényleg látszanak. Hogy közben a felénk néző
+  // falak se legyenek sötétek, az égbolt-fény (hemisphere) erős és világos —
+  // a nap csak a plasztikát és az árnyékokat adja hozzá.
+  sun.position.set(center.x - span * 0.45, span * 2.1, center.z - span * 0.3);
+  fill.position.set(center.x + span * 0.8, span * 0.9, center.z + span * 0.9);
+  sun.target.position.copy(center);
+  const sc = sun.shadow.camera;
+  sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span;
+  sc.near = 10; sc.far = span * 4;
+  sc.updateProjectionMatrix();
+
+  // az emberke a nézet középpontja: a kamera hozzá képest áll, és vele mozog
+  placeAvatar(avatar ? avatar.position : center, levels, span);
+  const dist = span * 1.4;
+  camera.position.set(
+    avatar.position.x + dist * 0.6, avatar.position.y + dist * 0.8, avatar.position.z + dist,
+  );
+  aimAtAvatar();
   needsRebuild = false;
 }
 
@@ -242,6 +277,7 @@ function addFloors(plan, group, levels) {
     const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
       color: new THREE.Color(room.color || '#dfe6ec'), side: THREE.DoubleSide,
     }));
+    mesh.receiveShadow = true;
     group.add(mesh);
   }
 }
@@ -254,9 +290,20 @@ function addFloors(plan, group, levels) {
 // Azért így: áttetsző falnál minden belső lap átüt. A régi, dobozokból rakott
 // fal a nyílások mellett és a sarkokban is belső lapokat hagyott — ezek
 // látszottak függőleges vonalakként, illetve a csatlakozásoknál sötét sávként.
-function addWalls(plan, group, wallH) {
-  const mat = wallMaterial();
+function addWalls(plan, group, wallH, levels) {
+  const mat = wallMaterials().opaque;
   const joints = wallJoints(plan);
+  fadeWalls = [];
+  let parts = [];   // az ÉPPEN épülő fal darabjai — együtt halványulnak
+
+  // minden faldarab vet és fogad árnyékot
+  const solid = geo => {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    parts.push(mesh);
+    return mesh;
+  };
 
   for (const w of plan.walls) {
     const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
@@ -272,52 +319,72 @@ function addWalls(plan, group, wallH) {
     const jb = joints.get(`${w.id}|${w.b}`) || { ext: 0, cap: true };
     const uStart = -ja.ext, uEnd = len + jb.ext;
 
-    const holes = wallHoles(plan, w, wallH, uStart, uEnd);
+    const holes = wallHoles(plan, w, wallH, uStart, uEnd, levels);
+
+    // A födémig érő nyílás (pl. zuhanykabin üvegajtaja, ahol nincs áthidaló)
+    // nem lyuk a fal nézetében, hanem KETTÉVÁGJA a falat: a lyuk széle egybeesne
+    // a lap tetejével, amiből elfajult alakzat lenne. Ezért az ilyen nyílások
+    // mentén szakaszokra bontjuk a falat, és a többi nyílás lyukként kerül bele.
+    const toCeiling = holes.filter(h => h.top >= wallH - 0.5);
+    const inner = holes.filter(h => h.top < wallH - 0.5);
+    const spans = spansExcluding(uStart, uEnd, toCeiling);
 
     // 1. a két oldalfelület: a fal NÉZETE, a nyílásokkal kilyukasztva —
     //    egyetlen lap, tehát a nyílások mellett nincs függőleges toldás
-    const face = new THREE.Shape();
-    rectPath(face, uStart, 0, uEnd, wallH);
-    for (const h of holes) {
-      const hole = new THREE.Path();
-      rectPath(hole, h.from, h.bottom, h.to, h.top);
-      face.holes.push(hole);
-    }
-    for (const v of [t / 2, -t / 2]) {
-      group.add(new THREE.Mesh(placeFace(new THREE.ShapeGeometry(face), a, ang, v), mat));
+    parts = [];
+    for (const [u0, u1] of spans) {
+      const face = new THREE.Shape();
+      rectPath(face, u0, 0, u1, wallH);
+      for (const h of inner) {
+        if (h.from < u0 || h.to > u1) continue;
+        const hole = new THREE.Path();
+        rectPath(hole, h.from, h.bottom, h.to, h.top);
+        face.holes.push(hole);
+      }
+      for (const v of [t / 2, -t / 2]) {
+        group.add(solid(placeFace(new THREE.ShapeGeometry(face), a, ang, v)));
+      }
     }
 
-    // 2. a fal teteje (a plafonig érő nyílásoknál megszakítva)
-    const upTo = holes.filter(h => h.top >= wallH - 0.5);
-    for (const [u0, u1] of spansExcluding(uStart, uEnd, upTo)) {
-      group.add(new THREE.Mesh(horizQuad(a, ang, t, u0, u1, wallH), mat));
+    // 2. a fal teteje (a födémig érő nyílásoknál megszakítva)
+    for (const [u0, u1] of spans) {
+      group.add(solid(horizQuad(a, ang, t, u0, u1, wallH)));
     }
 
     // 3. falvég-lezárás csak szabad végen (csatlakozásnál a lap a szomszéd
     //    falon belülre esne, és áttetszően sötét sávként ütne át)
-    if (ja.cap) group.add(new THREE.Mesh(crossQuad(a, ang, t, uStart, 0, wallH), mat));
-    if (jb.cap) group.add(new THREE.Mesh(crossQuad(a, ang, t, uEnd, 0, wallH), mat));
+    if (ja.cap) group.add(solid(crossQuad(a, ang, t, uStart, 0, wallH)));
+    if (jb.cap) group.add(solid(crossQuad(a, ang, t, uEnd, 0, wallH)));
 
     // 4. a nyílások kávái: két oldal + könyöklő felső lapja + áthidaló alja
     for (const h of holes) {
-      group.add(new THREE.Mesh(crossQuad(a, ang, t, h.from, h.bottom, h.top), mat));
-      group.add(new THREE.Mesh(crossQuad(a, ang, t, h.to, h.bottom, h.top), mat));
-      if (h.bottom > 0) group.add(new THREE.Mesh(horizQuad(a, ang, t, h.from, h.to, h.bottom), mat));
-      if (h.top < wallH) group.add(new THREE.Mesh(horizQuad(a, ang, t, h.from, h.to, h.top), mat));
+      group.add(solid(crossQuad(a, ang, t, h.from, h.bottom, h.top)));
+      group.add(solid(crossQuad(a, ang, t, h.to, h.bottom, h.top)));
+      if (h.bottom > 0) group.add(solid(horizQuad(a, ang, t, h.from, h.to, h.bottom)));
+      if (h.top < wallH) group.add(solid(horizQuad(a, ang, t, h.from, h.to, h.top)));
     }
+
+    // a fal SÍKJA és középpontja: ebből dől el képkockánként, hogy takar-e
+    fadeWalls.push({
+      parts,
+      normal: new THREE.Vector3(-Math.sin(ang), 0, Math.cos(ang)),
+      point: new THREE.Vector3(a.x, 0, a.y),
+      center: wallPoint(a, ang, (uStart + uEnd) / 2, 0, wallH / 2),
+      thickness: t,
+    });
   }
 }
 
 // a fal nyílásai a fal saját u-koordinátájában, összevonva. A fal végén TÚLLÓGÓ
 // nyílás (pl. a fal utólagos rövidítése után) csak a közös részt vágja ki, az
 // átfedő nyílások pedig eggyé olvadnak — különben kétszer kapnának kávát.
-function wallHoles(plan, w, wallH, uStart, uEnd) {
+function wallHoles(plan, w, wallH, uStart, uEnd, levels) {
   const raw = plan.objects
     .filter(o => o.wallId === w.id)
     .map(o => ({
       from: Math.max(uStart, o.offset - o.width / 2),
       to: Math.min(uEnd, o.offset + o.width / 2),
-      ...openingLevels(o, wallH),
+      ...openingLevels(o, wallH, openingBase(levels, plan, w, o)),
     }))
     .filter(h => h.to - h.from > 1)
     .sort((p, q) => p.from - q.from);
@@ -450,36 +517,233 @@ function rectPath(path, x0, y0, x1, y1) {
   path.closePath();
 }
 
-// a falak anyaga — az áttetszőség a 3D fejléc csúszkájáról állítható, ezért
-// megőrizzük a hivatkozást (depthWrite: false, különben az áttetsző fal is
-// eltakarná a mögötte lévőket)
-function wallMaterial() {
-  wallMat = new THREE.MeshLambertMaterial({
-    color: '#f2f0eb', side: THREE.DoubleSide,
-    transparent: true, opacity: wallOpacity, depthWrite: wallOpacity > 0.98,
-  });
-  return wallMat;
+// A falaknak KÉT anyaga van: a hátsó (a nézőtől távolabbi) falak tömörek, a
+// kamera és az emberke KÖZÖTT állók pedig áttetszők — így felülről-oldalról
+// belátni a lakásba, de a háttér nem lesz zavaros üvegdoboz.
+function wallMaterials() {
+  if (!wallOpaqueMat) {
+    // DoubleSide: a fal két oldallapja közül az egyik geometriai normálisa
+    // befelé néz — kétoldalas anyaggal mindkettő helyesen világítódik.
+    // shadowSide: az árnyék viszont elég egy oldalról (a kétszeres árnyék-
+    // rajzolás fölösleges, és a vékony lapokon szemcsét is okoz).
+    wallOpaqueMat = new THREE.MeshLambertMaterial({
+      color: '#f4f2ee', side: THREE.DoubleSide, shadowSide: THREE.FrontSide,
+      emissive: '#4a4845',   // a fal sose legyen sötétszürke, ha nem éri nap
+    });
+    wallFadeMat = new THREE.MeshLambertMaterial({
+      color: '#f4f2ee', side: THREE.DoubleSide, shadowSide: THREE.FrontSide,
+      emissive: '#4a4845',
+      transparent: true, opacity: wallOpacity, depthWrite: false,
+    });
+  }
+  return { opaque: wallOpaqueMat, fade: wallFadeMat };
 }
 
 export function setWallOpacity(value) {
-  wallOpacity = Math.max(0.05, Math.min(1, value));
-  if (!wallMat) return;
-  wallMat.opacity = wallOpacity;
-  wallMat.depthWrite = wallOpacity > 0.98;
-  wallMat.needsUpdate = true;
+  wallOpacity = Math.max(0.02, Math.min(1, value));
+  if (!wallFadeMat) return;
+  wallFadeMat.opacity = wallOpacity;
+  wallFadeMat.depthWrite = wallOpacity > 0.98;
+  wallFadeMat.needsUpdate = true;
 }
 
-// a nyílás alsó/felső széle: ablaknál könyöklővel, ajtónál padlótól; a nyílás
-// mindig beleférjen a falba
-function openingLevels(o, wallH) {
-  const height = Math.min(o.height > 0 ? o.height : 210, wallH);
-  const bottom = o.kind === 'window' ? Math.max(0, Math.min(WINDOW_SILL, wallH - height)) : 0;
+// Melyik fal áll a kamera és az emberke KÖZÖTT?
+//
+// A döntés FALANKÉNT születik, nem laponként: ha csak az egyik oldallap tűnne
+// el, a fal fele ott maradna, és a falazat darabjaira esne szét. Egy fal akkor
+// takar, ha (1) a kamera és az emberke a fal síkjának ELLENTÉTES oldalán van,
+// és (2) a fal közelebb van a kamerához, mint az emberke.
+//
+function updateWallFade() {
+  if (!fadeWalls.length || !camera) return;
+  const cam = camera.position, t = controls.target;
+  const mats = wallMaterials();
+  const camToTarget = cam.distanceTo(t);
+
+  for (const w of fadeWalls) {
+    const n = w.normal, p = w.point;
+    const dCam = n.x * (cam.x - p.x) + n.z * (cam.z - p.z);
+    const dTgt = n.x * (t.x - p.x) + n.z * (t.z - p.z);
+    const between = Math.abs(dCam) > w.thickness / 2 && (dCam > 0) !== (dTgt > 0);
+    const fade = between && cam.distanceTo(w.center) < camToTarget;
+
+    // Az elhalványított fal TOVÁBBRA IS vet árnyékot: a napfény ugyanúgy
+    // megtörik rajta, és enélkül a belső tér teljesen árnyék nélküli, lapos
+    // lenne. A nap magasan áll, ezért ez a fal tövénél futó keskeny csík, nem
+    // az egész padlót elborító szürke tábla.
+    const wanted = fade ? mats.fade : mats.opaque;
+    for (const mesh of w.parts) {
+      if (mesh.material !== wanted) mesh.material = wanted;
+    }
+  }
+}
+
+// --- az emberke: a nézet középpontja, szabadon húzható ---
+
+const AVATAR_H = 172;   // cm
+
+// Álló női alak, testrészekből összerakva (fej, haj, törzs, miniszoknya, kar,
+// láb, cipő). Nem részletes modell — a célja, hogy MÉRETARÁNYOS viszonyítási
+// pont legyen a lakásban, és egy pillantásra látszódjon, merre "néz" a nézet.
+// Minden méret cm-ben, a teljes magasság AVATAR_H.
+function buildAvatar() {
+  const g = new THREE.Group();
+  const skin = new THREE.MeshLambertMaterial({ color: '#f2c6a0' });
+  const hair = new THREE.MeshLambertMaterial({ color: '#4a3226' });
+  const top = new THREE.MeshLambertMaterial({ color: '#3aa9d6' });
+  const skirt = new THREE.MeshLambertMaterial({ color: '#d94f72' });
+  const shoe = new THREE.MeshLambertMaterial({ color: '#3a3f47' });
+
+  // a figura a +z irányba néz; a nézethez képest a placeAvatar forgatja el
+  const add = (geo, mat, x, y, z = 0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    g.add(m);
+    return m;
+  };
+
+  for (const side of [-1, 1]) {
+    add(new THREE.BoxGeometry(8, 4, 17), shoe, side * 6, 2, 2);                // cipő
+    add(new THREE.CylinderGeometry(4.2, 5, 78, 12), skin, side * 6, 43, 0);    // láb
+    add(new THREE.CylinderGeometry(3.2, 3.6, 52, 10), skin, side * 15, 113, 0); // kar
+  }
+
+  add(new THREE.CylinderGeometry(11.5, 19, 26, 20), skirt, 0, 95, 0);          // miniszoknya
+  add(new THREE.CylinderGeometry(12, 11, 40, 20), top, 0, 122, 0);             // törzs (felső)
+  add(new THREE.CylinderGeometry(3.6, 3.6, 7, 10), skin, 0, 145, 0);           // nyak
+  add(new THREE.SphereGeometry(9.5, 20, 16), skin, 0, 157, 0);                 // fej
+
+  const cap = add(new THREE.SphereGeometry(10.2, 20, 16), hair, 0, 158.5, -0.8); // haj
+  cap.scale.set(1, 1.05, 1.05);
+  add(new THREE.CapsuleGeometry(5.5, 26, 4, 12), hair, 0, 137, -8);            // hosszú haj hátul
+
+  // talppont-jelölő, hogy húzás közben is látszódjon, hol áll
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(20, 26, 32),
+    new THREE.MeshBasicMaterial({ color: '#2f8fd0', transparent: true, opacity: 0.75, side: THREE.DoubleSide }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 1;
+  g.add(ring);
+  return g;
+}
+
+// az emberke a megadott pontra áll, annak a helyiségnek a padlójára
+function placeAvatar(pos, levels, span) {
+  if (!avatar) {
+    avatar = buildAvatar();
+    scene.add(avatar);
+  }
+  const scale = Math.max(1, span / 1500);   // nagy alaprajzon ne vesszen el
+  avatar.scale.setScalar(scale);
+  avatar.position.set(pos.x, (levelAt(levels, pos.x, pos.z) ?? 0), pos.z);
+}
+
+// a figura a kamera felé fordul (a hajáról/szoknyájáról így mindig látszik,
+// hogy ember, nem egy hasáb)
+function faceCamera() {
+  if (!avatar || !camera) return;
+  avatar.rotation.y = Math.atan2(
+    camera.position.x - avatar.position.x, camera.position.z - avatar.position.z,
+  );
+}
+
+// a kamera az emberke fejmagasságára néz, a jelenlegi irányból
+function aimAtAvatar() {
+  controls.target.set(avatar.position.x, avatar.position.y + AVATAR_H * 0.6, avatar.position.z);
+  controls.update();
+}
+
+// Húzás: az emberkére kattintva a vízszintes síkon mozgatható, és a kamera
+// vele együtt tolódik — a nézet mindig hozzá képest áll.
+function initAvatarDrag() {
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  const plane = new THREE.Plane();
+  const hit = new THREE.Vector3();
+  let dragFrom = null;
+
+  const toNdc = e => {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  };
+
+  renderer.domElement.addEventListener('pointerdown', e => {
+    if (!avatar || e.button !== 0) return;
+    toNdc(e);
+    ray.setFromCamera(ndc, camera);
+    if (!ray.intersectObject(avatar, true).length) return;
+
+    plane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), avatar.position.clone());
+    if (!ray.ray.intersectPlane(plane, hit)) return;
+    dragFrom = hit.clone();
+    controls.enabled = false;
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* nem támogatott */ }
+  });
+
+  renderer.domElement.addEventListener('pointermove', e => {
+    if (!dragFrom) return;
+    toNdc(e);
+    ray.setFromCamera(ndc, camera);
+    if (!ray.ray.intersectPlane(plane, hit)) return;
+
+    const dx = hit.x - dragFrom.x, dz = hit.z - dragFrom.z;
+    dragFrom.copy(hit);
+    avatar.position.x += dx;
+    avatar.position.z += dz;
+    // a padlószint a helyiséggel változhat (megemelt padlójú téli kert stb.)
+    const y = levelAt(planLevels, avatar.position.x, avatar.position.z);
+    if (y != null) avatar.position.y = y;
+    camera.position.x += dx;
+    camera.position.z += dz;
+    aimAtAvatar();
+  });
+
+  const end = e => {
+    if (!dragFrom) return;
+    dragFrom = null;
+    controls.enabled = true;
+    try { renderer.domElement.releasePointerCapture(e.pointerId); } catch { /* nem volt elkapva */ }
+  };
+  renderer.domElement.addEventListener('pointerup', end);
+  renderer.domElement.addEventListener('pointercancel', end);
+}
+
+// A nyílás alsó/felső széle. A magasságokat annak a helyiségnek a PADLÓJÁTÓL
+// mérjük, amelyikbe a nyílás nyílik (`base`) — egy megemelt padlójú helyiségbe
+// vezető ajtó a lépcső tetején nyílik, nem az alsó szintről.
+function openingLevels(o, wallH, base = 0) {
+  // "nincs fölötte fal" (pl. zuhanykabin üvegajtaja): a nyílás a födémig ér
+  if (o.noLintel) return { bottom: Math.max(0, Math.min(wallH, base)), top: wallH };
+  const height = Math.min(o.height > 0 ? o.height : 210, wallH - base);
+  const sill = o.kind === 'window' ? Math.min(WINDOW_SILL, wallH - base - height) : 0;
+  const bottom = Math.max(0, Math.min(wallH, base + Math.max(0, sill)));
   return { bottom, top: Math.min(wallH, bottom + height) };
+}
+
+// A nyílás padlószintje: a fal KÉT OLDALÁN megnézzük, melyik helyiségbe esik,
+// és a magasabbat vesszük — két különböző szintű helyiség közötti ajtó a felső
+// padló szintjén ül (a lépcső tetején), a küszöb alatt marad a falszakasz.
+function openingBase(levels, plan, w, o) {
+  const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  if (!a || !b) return 0;
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (len < 1) return 0;
+  const dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+  const nrm = { x: -dir.y, y: dir.x };
+  const c = { x: a.x + dir.x * o.offset, y: a.y + dir.y * o.offset };
+  const d = w.thickness / 2 + 25;
+
+  const l1 = levelAt(levels, c.x + nrm.x * d, c.y + nrm.y * d);
+  const l2 = levelAt(levels, c.x - nrm.x * d, c.y - nrm.y * d);
+  if (l1 == null && l2 == null) return 0;
+  return Math.max(l1 ?? 0, l2 ?? 0);
 }
 
 // Az ablakok üvegtáblát kapnak: áttetsző falaknál a puszta nyílás nem látszik,
 // és így az is rögtön kiderül, ha egy nyílás rossz helyre került.
-function addOpenings(plan, group, wallH) {
+function addOpenings(plan, group, wallH, levels) {
   const glass = new THREE.MeshLambertMaterial({
     color: '#a9c9de', transparent: true, opacity: 0.45, depthWrite: false,
   });
@@ -493,7 +757,7 @@ function addOpenings(plan, group, wallH) {
     if (len < 1) continue;
 
     const ang = Math.atan2(b.y - a.y, b.x - a.x);
-    const { bottom, top } = openingLevels(o, wallH);
+    const { bottom, top } = openingLevels(o, wallH, openingBase(levels, plan, w, o));
     const h = top - bottom;
     if (h < 1) continue;
 
@@ -522,6 +786,8 @@ function addFurniture(plan, group, levels) {
     }));
     mesh.position.set(item.x, base + h / 2, item.y);
     mesh.rotation.y = -item.rotation * Math.PI / 180;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     group.add(mesh);
     group.add(edges(geo, mesh));
   }
@@ -544,6 +810,8 @@ function stairMesh(item, levels) {
     const h = rise * (i + 1);
     const geo = new THREE.BoxGeometry(item.w, h, tread);
     const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     // a fokok a MAGASABB vég felé emelkednek
     const local = -item.h / 2 + tread * (ends.topAtBack ? steps - i - 0.5 : i + 0.5);
     mesh.position.set(0, h / 2, local);
@@ -612,8 +880,11 @@ function edges(geo, mesh) {
 function disposeTree(root) {
   root.traverse(o => {
     o.geometry?.dispose?.();
-    if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
-    else o.material?.dispose?.();
+    // a falak két anyaga megosztott és újrahasznosuljuk — azt nem dobjuk el
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (m && m !== wallOpaqueMat && m !== wallFadeMat) m.dispose();
+    }
   });
 }
 

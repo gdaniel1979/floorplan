@@ -161,6 +161,13 @@ function initDoorControls() {
     applyToSelectedObject('door', o => { o.doorType = ui.doorType; });
   });
 
+  // "nincs fölötte fal": a nyílás a plafonig ér (zuhanykabin üvegajtaja)
+  const noLintelBox = document.getElementById('door-no-lintel');
+  noLintelBox?.addEventListener('change', () => {
+    ui.doorNoLintel = noLintelBox.checked;
+    applyToSelectedObject('door', o => { o.noLintel = ui.doorNoLintel; });
+  });
+
   initSizeInput('door-width', 'door', 'doorWidth', (plan, o, v) => resizeObject(plan, o, v));
   initSizeInput('door-height', 'door', 'doorHeight', (plan, o, v) => setObjectHeight(plan, o, v));
 }
@@ -183,6 +190,12 @@ function initSizeInput(inputId, kind, uiKey, apply) {
 }
 
 function initWindowControls() {
+  const kindSelect = document.getElementById('window-kind');
+  kindSelect?.addEventListener('change', () => {
+    ui.windowType = kindSelect.value === 'fix' ? 'fix' : 'openable';
+    applyToSelectedObject('window', o => { o.windowType = ui.windowType; });
+  });
+
   const sashSelect = document.getElementById('window-sash-count');
   const flipSideBtn = document.getElementById('window-flip-side');
 

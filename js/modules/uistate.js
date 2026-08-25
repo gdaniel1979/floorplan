@@ -14,6 +14,8 @@ export const ui = {
   doorFlipSide: false,   // az új ajtók nyitási iránya alapból melyik oldalra mutasson
   doorType: 'swing',     // az új ajtók fajtája: 'swing' | 'sliding' | 'opening'
   doorLeafCount: 1,      // az új ajtók alapból 1 vagy 2 szárnyúak legyenek
+  doorNoLintel: false,   // az új ajtók fölött van-e fal (zuhanykabin üvegajtaja: nincs)
+  windowType: 'openable', // az új ablakok fajtája: 'openable' | 'fix' (nem nyitható)
   windowSashCount: 1,    // az új ablakok alapból 1 vagy 2 szárnyúak legyenek
   windowFlipSide: false, // az új ablakok nyitási iránya alapból melyik oldalra mutasson
   doorWidth: 90,         // cm – az új ajtók szélessége

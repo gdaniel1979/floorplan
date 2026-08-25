@@ -269,10 +269,11 @@ function placeObject(plan, kind, target, p) {
   const defaults = kind === 'door'
     ? {
         flipHinge: ui.doorFlipHinge, flipSide: ui.doorFlipSide, doorType: ui.doorType,
+        leafCount: ui.doorLeafCount, noLintel: ui.doorNoLintel,
         width: ui.doorWidth, height: ui.doorHeight,
       }
     : {
-        sashCount: ui.windowSashCount, flipSide: ui.windowFlipSide,
+        windowType: ui.windowType, sashCount: ui.windowSashCount, flipSide: ui.windowFlipSide,
         width: ui.windowWidth, height: ui.windowHeight,
       };
   const obj = addObject(plan, wallId, kind, offsetOnWall(plan, w, p), defaults);

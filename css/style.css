@@ -709,6 +709,13 @@ input.rename {
   pointer-events: none;
 }
 
+/* fix (nem nyitható) üvegezés: folytonos üvegvonal, nyitás-átló nélkül */
+.window-glass {
+  stroke: #c9791a;
+  fill: none;
+  pointer-events: none;
+}
+
 /* nyílászáró-méretjelölés: szélesség (cm) / magasság (m) törtvonallal */
 .opening-tag {
   pointer-events: none;
