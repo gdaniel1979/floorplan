@@ -52,38 +52,38 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0d11;
-    --bg-side: #111318;
-    --surface: #171a20;
-    --surface-2: #1d2129;
-    --surface-3: #242933;
-    --input-bg: #111318;
-    --seg-active: #2e3441;
-    --border: #262b34;
-    --border-strong: #353c48;
-    --fg: #eceef2;
-    --fg-2: #c7ccd5;
-    --fg-muted: #8b93a3;
-    --hover: rgba(255, 255, 255, 0.05);
+/* sötét téma: a data-theme attribútumot az index.html fejében lévő szkript
+   állítja be (mentett választás, ennek hiányában a rendszer beállítása) */
+:root[data-theme="dark"] {
+  --bg: #0b0d11;
+  --bg-side: #111318;
+  --surface: #171a20;
+  --surface-2: #1d2129;
+  --surface-3: #242933;
+  --input-bg: #111318;
+  --seg-active: #2e3441;
+  --border: #262b34;
+  --border-strong: #353c48;
+  --fg: #eceef2;
+  --fg-2: #c7ccd5;
+  --fg-muted: #8b93a3;
+  --hover: rgba(255, 255, 255, 0.05);
 
-    --accent: #a5b4fc;
-    --accent-solid: #6366f1;
-    --accent-solid-hover: #7c7ff5;
-    --accent-soft: rgba(129, 140, 248, 0.14);
-    --accent-line: rgba(129, 140, 248, 0.45);
-    --ring: 0 0 0 3px rgba(129, 140, 248, 0.28);
-    --danger: #f87171;
-    --danger-soft: rgba(248, 113, 113, 0.1);
+  --accent: #a5b4fc;
+  --accent-solid: #6366f1;
+  --accent-solid-hover: #7c7ff5;
+  --accent-soft: rgba(129, 140, 248, 0.14);
+  --accent-line: rgba(129, 140, 248, 0.45);
+  --ring: 0 0 0 3px rgba(129, 140, 248, 0.28);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.1);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 6px 16px -4px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px -4px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.7);
 
-    --canvas-bg: #f4f5f7;
-    color-scheme: dark;
-  }
+  --canvas-bg: #f4f5f7;
+  color-scheme: dark;
 }
 
 /* ------------------------------------------------------------ alapok */
@@ -255,6 +255,11 @@ kbd {
 .icon-btn-lg .i { width: 17px; height: 17px; }
 .icon-btn-lg:hover:not(:disabled) { color: var(--fg); background: var(--seg-active); box-shadow: var(--shadow-sm); }
 .icon-btn-lg:disabled { opacity: 0.35; cursor: default; }
+
+/* téma-kapcsoló: világosban a hold (sötétre vált), sötétben a nap látszik */
+#theme-toggle .i-sun { display: none; }
+:root[data-theme="dark"] #theme-toggle .i-sun { display: block; }
+:root[data-theme="dark"] #theme-toggle .i-moon { display: none; }
 
 /* ------------------------------------------------------------ gombok */
 

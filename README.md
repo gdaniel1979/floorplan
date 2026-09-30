@@ -50,8 +50,8 @@ Majd böngészőben: `http://<szerver>:8001/`
 ## Kódstruktúra
 
 - `index.html` – az oldal váza (fejléc, oldalsávok, SVG-vászon, PDF- és 3D-panel)
-- `css/style.css` – megjelenés: színtokenek világos és sötét témával (a rendszer
-  beállítását követi), a rajzvászon mindkettőben világos; a rajzjelek stílusai a
+- `css/style.css` – megjelenés: színtokenek világos és sötét témával (a fejlécben
+  váltható, választás nélkül a rendszer beállítását követi), a rajzvászon mindkettőben világos; a rajzjelek stílusai a
   PDF-nyomtatásnál is ezek
 - `vendor/` – a repóba másolt three.js + OrbitControls (offline működéshez)
 - `js/app.js` – belépési pont
@@ -92,6 +92,7 @@ Megjelenítés és kezelőfelület:
 - `js/modules/pdfexport.js` – PDF-export (nyomtatási nézet, beállításokkal)
 - `js/modules/view3d.js` – 3D nézet (three.js)
 - `js/modules/toast.js` – rövid, magától eltűnő visszajelzés
+- `js/modules/theme.js` – világos/sötét téma kapcsoló
 
 ## Fejlesztési fázisok
 

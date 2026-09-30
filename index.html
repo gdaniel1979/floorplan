@@ -7,6 +7,18 @@
   <title>Alaprajz szerkesztő</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    // A téma még az első kirajzolás előtt álljon be, különben sötét témánál
+    // egy pillanatra világos oldal villanna fel. A kapcsolót a theme.js kezeli.
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('floorplan.theme'); } catch (e) { /* nem elérhető */ }
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
 </head>
 <body>
   <!-- ikon-készlet: egyszer definiálva, <use>-zal hivatkozva -->
@@ -34,6 +46,8 @@
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
       <symbol id="i-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 10h.01M15 10h.01"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
       <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
     </defs>
   </svg>
@@ -53,6 +67,9 @@
         <button id="redo-btn" class="icon-btn-lg" title="Ismétlés (Ctrl+Y)" aria-label="Ismétlés" disabled><svg class="i" aria-hidden="true"><use href="#i-redo"/></svg></button>
         <span class="btn-group-sep"></span>
         <button id="fit-view-btn" class="icon-btn-lg" title="Rajz igazítása a vászonhoz" aria-label="Igazítás"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg></button>
+      </div>
+      <div class="btn-group">
+        <button id="theme-toggle" class="icon-btn-lg" title="Sötét téma" aria-label="Téma váltása"><svg class="i i-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="i i-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
       </div>
       <button id="view3d-btn" class="btn" title="3D nézet a teljes alaprajzról"><svg class="i" aria-hidden="true"><use href="#i-cube"/></svg><span>3D nézet</span></button>
       <div id="save-menu-wrap">
