@@ -38,6 +38,9 @@ függőség van, az is a repóba másolva (`vendor/`): a three.js a 3D nézethez
   padlója van feljebb), a lépcsők a két végüknél lévő szint között futnak. A néző és
   a modell közé eső falak elhalványulnak, a hátsók tömörek maradnak; egy húzható
   emberke a nézet középpontja.
+- **Világos/sötét téma**: a fejléc nap/hold gombjával váltható, a választás
+  megmarad. Amíg nincs választás, a rendszer beállítását követi (futás közben is).
+  A rajzvászon és a PDF mindkét témában világos marad.
 
 ## Futtatás
 
@@ -50,9 +53,8 @@ Majd böngészőben: `http://<szerver>:8001/`
 ## Kódstruktúra
 
 - `index.html` – az oldal váza (fejléc, oldalsávok, SVG-vászon, PDF- és 3D-panel)
-- `css/style.css` – megjelenés: színtokenek világos és sötét témával (a fejlécben
-  váltható, választás nélkül a rendszer beállítását követi), a rajzvászon mindkettőben világos; a rajzjelek stílusai a
-  PDF-nyomtatásnál is ezek
+- `css/style.css` – megjelenés: színtokenek világos és sötét témával; a rajzvászon
+  mindkettőben világos, a rajzjelek stílusait a PDF-nyomtatás is használja
 - `vendor/` – a repóba másolt three.js + OrbitControls (offline működéshez)
 - `js/app.js` – belépési pont
 
