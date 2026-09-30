@@ -1,7 +1,7 @@
 // Az aktív szint rajzának megjelenítése: falak (sraffozott, professzionális
 // kinézettel), nyílászárók, láncolt külső méretvonalak, helyiség-körvonalak,
-// kijelölés és fogantyúk. Minden változáskor (állapot, nézet, eszköz) teljes
-// újrarajzolás.
+// kijelölés és fogantyúk. Állapot- vagy eszközváltáskor teljes újrarajzolás
+// (rajz + oldalpanelek), nézetváltáskor képkockánként legfeljebb egyszer csak a rajz.
 
 import { el, getContent, getOverlay, getScale, setGridVisible, setOriginVisible } from './canvas.js';
 import { getPlan, nodeById, wallById, wallLengthOf, wallInteriorLengthOf, endDeductionAt, throughPartner, wallClearances } from './plan.js';
@@ -15,6 +15,28 @@ import { furnitureSymbolParts, hasSymbol, hidesBody } from './symbols.js';
 import { computeRoomSurfaces } from './surfaces.js';
 
 export function renderAll() {
+  const plan = renderDrawing();
+  if (!plan) return;
+  updateDoorWindowPanel(plan);
+  updateWallOptionsPanel(plan);
+  updateFurnitureOptionsPanel(plan);
+  updateSurfacesPanel(plan);
+}
+
+// Nézetváltáskor (pan/zoom) csak a rajz függ a léptéktől (vonalvastagságok,
+// feliratméretek), az oldalpanelek nem. Egy képkockán belül több egér-esemény
+// is érkezhet — ezeket egyetlen újrarajzolásba vonjuk össze.
+let viewFrame = 0;
+export function scheduleViewRender() {
+  if (viewFrame) return;
+  viewFrame = requestAnimationFrame(() => {
+    viewFrame = 0;
+    renderDrawing();
+  });
+}
+
+// a vászon teljes újrarajzolása; a kirajzolt tervet adja vissza (vagy null-t)
+function renderDrawing() {
   const content = getContent();
   const overlay = getOverlay();
   content.innerHTML = '';
@@ -24,7 +46,7 @@ export function renderAll() {
   setOriginVisible(ui.layerVisible.origin);
 
   const plan = getPlan();
-  if (!plan) return;
+  if (!plan) return null;
   const s = getScale();
 
   // helyiség-körvonalak legalul (nincs szín-kitöltés a rajzon — a szín csak
@@ -186,11 +208,7 @@ export function renderAll() {
     const label = roomLabel(room, trace, s);
     if (label) overlay.appendChild(label);
   }
-
-  updateDoorWindowPanel(plan);
-  updateWallOptionsPanel(plan);
-  updateFurnitureOptionsPanel(plan);
-  updateSurfacesPanel(plan);
+  return plan;
 }
 
 // helyiségenkénti belmagasság + fal-felület panel — a fókuszban lévő

@@ -3,49 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>Alaprajz szerkesztő</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- ikon-készlet: egyszer definiálva, <use>-zal hivatkozva -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-select" viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11z"/></symbol>
+      <symbol id="i-wall" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M8 8l-4 8M13 8l-4 8M18 8l-4 8"/></symbol>
+      <symbol id="i-room" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 13h8v8M14 3v6h7"/></symbol>
+      <symbol id="i-ortho" viewBox="0 0 24 24"><path d="M5 4v15h15"/><path d="M5 13h6v6"/></symbol>
+      <symbol id="i-door" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><path d="M14 12h.01"/></symbol>
+      <symbol id="i-window" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M12 4v16M4 12h16"/></symbol>
+      <symbol id="i-swap-h" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></symbol>
+      <symbol id="i-swap-v" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+      <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
+      <symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></symbol>
+      <symbol id="i-cube" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></symbol>
+      <symbol id="i-save" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></symbol>
+      <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-chevrons-right" viewBox="0 0 24 24"><path d="m13 17 5-5-5-5M6 17l5-5-5-5"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 10h.01M15 10h.01"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    </defs>
+  </svg>
   <div id="app">
     <header id="topbar">
-      <h1>Alaprajz szerkesztő</h1>
+      <div class="brand">
+        <img class="brand-logo" src="favicon.svg" alt="">
+        <h1>Alaprajz</h1>
+      </div>
+      <div class="crumb">
+        <svg class="i" aria-hidden="true"><use href="#i-building"/></svg>
+        <span id="property-title" class="muted">– nincs ingatlan –</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="btn-group">
+        <button id="undo-btn" class="icon-btn-lg" title="Visszavonás (Ctrl+Z)" aria-label="Visszavonás" disabled><svg class="i" aria-hidden="true"><use href="#i-undo"/></svg></button>
+        <button id="redo-btn" class="icon-btn-lg" title="Ismétlés (Ctrl+Y)" aria-label="Ismétlés" disabled><svg class="i" aria-hidden="true"><use href="#i-redo"/></svg></button>
+        <span class="btn-group-sep"></span>
+        <button id="fit-view-btn" class="icon-btn-lg" title="Rajz igazítása a vászonhoz" aria-label="Igazítás"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg></button>
+      </div>
+      <button id="view3d-btn" class="btn" title="3D nézet a teljes alaprajzról"><svg class="i" aria-hidden="true"><use href="#i-cube"/></svg><span>3D nézet</span></button>
       <div id="save-menu-wrap">
-        <button id="save-menu-btn" class="btn">Mentés ▾</button>
+        <button id="save-menu-btn" class="btn primary"><svg class="i" aria-hidden="true"><use href="#i-save"/></svg><span>Mentés</span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
         <div id="save-menu" class="menu" hidden>
-          <button id="export-json" class="menu-item">Exportálás (JSON)</button>
-          <button id="export-pdf" class="menu-item">Exportálás (PDF)…</button>
-          <button id="import-json" class="menu-item">Importálás…</button>
+          <button id="export-json" class="menu-item"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><span>Exportálás <small>JSON</small></span></button>
+          <button id="export-pdf" class="menu-item"><svg class="i" aria-hidden="true"><use href="#i-print"/></svg><span>Exportálás <small>PDF</small>…</span></button>
+          <button id="import-json" class="menu-item"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg><span>Importálás…</span></button>
           <div class="menu-note">A munka automatikusan mentődik a böngészőbe.</div>
         </div>
         <input type="file" id="import-file" accept=".json,application/json" hidden>
       </div>
-      <div class="btn-group">
-        <button id="undo-btn" class="icon-btn-lg" title="Visszavonás (Ctrl+Z)" disabled>↶</button>
-        <button id="redo-btn" class="icon-btn-lg" title="Ismétlés (Ctrl+Y)" disabled>↷</button>
-        <button id="fit-view-btn" class="icon-btn-lg" title="Rajz igazítása a vászonhoz">⛶</button>
-        <button id="view3d-btn" class="icon-btn-lg" title="3D nézet a teljes alaprajzról">3D</button>
-      </div>
-      <span id="property-title" class="muted">– nincs ingatlan –</span>
     </header>
     <aside id="sidebar">
       <div class="prop-tree-wrap">
         <div class="prop-tree-head">
-          <span>Ingatlan</span>
-          <button id="add-property" title="Új ingatlan">+ Ingatlan</button>
+          <span>Ingatlanok</span>
+          <button id="add-property" title="Új ingatlan"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Új</button>
         </div>
         <div id="property-list" class="prop-tree"></div>
       </div>
       <section class="panel">
         <h2>Rajzolás</h2>
-        <div class="tool-row">
-          <button class="tool-btn" data-tool="select" title="Kijelölés / szerkesztés (V)">⭢ Kijelölés</button>
-          <button class="tool-btn" data-tool="wall" title="Fal rajzolása (F)">▬ Fal</button>
-          <button class="tool-btn" data-tool="room" title="Helyiség kijelölése (R)">▦ Helyiség</button>
+        <div class="tool-grid">
+          <button class="tool-btn tool-tile" data-tool="select" title="Kijelölés / szerkesztés (V)"><svg class="i" aria-hidden="true"><use href="#i-select"/></svg><span>Kijelölés</span><kbd>V</kbd></button>
+          <button class="tool-btn tool-tile" data-tool="wall" title="Fal rajzolása (F)"><svg class="i" aria-hidden="true"><use href="#i-wall"/></svg><span>Fal</span><kbd>F</kbd></button>
+          <button class="tool-btn tool-tile" data-tool="room" title="Helyiség kijelölése (R)"><svg class="i" aria-hidden="true"><use href="#i-room"/></svg><span>Helyiség</span><kbd>R</kbd></button>
         </div>
         <div class="tool-row">
-          <button id="ortho-toggle" class="tool-btn" title="Csak derékszögek (90/180/270°) engedélyezése rajzoláskor">⊾ Csak derékszög</button>
+          <button id="ortho-toggle" class="tool-btn" title="Csak derékszögek (90/180/270°) engedélyezése rajzoláskor"><svg class="i" aria-hidden="true"><use href="#i-ortho"/></svg><span>Csak derékszög</span></button>
         </div>
         <div class="control-row">
           <label for="wall-thickness">Új fal vastagsága</label>
@@ -101,8 +138,8 @@
       <section class="panel">
         <h2>Nyílászárók</h2>
         <div class="tool-row">
-          <button class="tool-btn" data-tool="door" title="Ajtó elhelyezése falba">⏦ Ajtó</button>
-          <button class="tool-btn" data-tool="window" title="Ablak elhelyezése falba">▭ Ablak</button>
+          <button class="tool-btn" data-tool="door" title="Ajtó elhelyezése falba"><svg class="i" aria-hidden="true"><use href="#i-door"/></svg><span>Ajtó</span></button>
+          <button class="tool-btn" data-tool="window" title="Ablak elhelyezése falba"><svg class="i" aria-hidden="true"><use href="#i-window"/></svg><span>Ablak</span></button>
         </div>
 
         <div id="door-options" hidden>
@@ -131,12 +168,12 @@
           </div>
           <div class="control-row">
             <label for="door-no-lintel">Nincs fölötte fal</label>
-            <input type="checkbox" id="door-no-lintel">
+            <input type="checkbox" id="door-no-lintel" class="switch">
           </div>
           <p class="hint">Pl. zuhanykabin üvegajtaja: a nyílás a plafonig ér, nincs áthidaló. A 3D nézetet érinti.</p>
           <div class="tool-row">
-            <button id="door-flip-hinge" class="tool-btn" title="A zsanér a fal másik végére kerüljön">⇋ Zsanér oldala</button>
-            <button id="door-flip-side" class="tool-btn" title="A nyitás iránya a fal másik oldalára forduljon">⇅ Nyitás iránya</button>
+            <button id="door-flip-hinge" class="tool-btn" title="A zsanér a fal másik végére kerüljön"><svg class="i" aria-hidden="true"><use href="#i-swap-h"/></svg><span>Zsanér oldala</span></button>
+            <button id="door-flip-side" class="tool-btn" title="A nyitás iránya a fal másik oldalára forduljon"><svg class="i" aria-hidden="true"><use href="#i-swap-v"/></svg><span>Nyitás iránya</span></button>
           </div>
           <p class="hint">A fenti gombok az új ajtókra és a kijelölt ajtóra is vonatkoznak.</p>
         </div>
@@ -165,7 +202,7 @@
             </select>
           </div>
           <div class="tool-row" id="window-flip-row">
-            <button id="window-flip-side" class="tool-btn" title="A nyitás iránya a fal másik oldalára forduljon">⇅ Nyitás iránya</button>
+            <button id="window-flip-side" class="tool-btn" title="A nyitás iránya a fal másik oldalára forduljon"><svg class="i" aria-hidden="true"><use href="#i-swap-v"/></svg><span>Nyitás iránya</span></button>
           </div>
           <p class="hint">A fenti gombok az új ablakokra és a kijelölt ablakra is vonatkoznak.</p>
         </div>
@@ -174,17 +211,19 @@
     <main id="canvas-wrap">
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="statusbar">
-        <span id="coords">x: – cm · y: – cm</span>
-        <span id="zoom-label">100%</span>
+        <span id="coords" class="status-pill">x: – cm · y: – cm</span>
+        <span id="zoom-label" class="status-pill">100%</span>
       </div>
     </main>
     <div id="right-resizer" title="Húzd a sáv átméretezéséhez"></div>
     <aside id="right-panel">
-      <button id="right-panel-toggle" title="Sáv becsukása / kinyitása" aria-expanded="true">»</button>
-      <div class="tool-row" id="right-tabs">
-        <button class="tool-btn" data-tab="layers">Rétegek</button>
-        <button class="tool-btn active" data-tab="furniture">Bútorok</button>
-        <button class="tool-btn" data-tab="surfaces">Helyiségek</button>
+      <div class="rp-head">
+        <button id="right-panel-toggle" title="Sáv becsukása / kinyitása" aria-expanded="true"><svg class="i" aria-hidden="true"><use href="#i-chevrons-right"/></svg></button>
+        <div id="right-tabs" role="tablist">
+          <button class="tool-btn" data-tab="layers">Rétegek</button>
+          <button class="tool-btn active" data-tab="furniture">Bútorok</button>
+          <button class="tool-btn" data-tab="surfaces">Helyiségek</button>
+        </div>
       </div>
 
       <div class="tab-panel" data-tabpanel="furniture">
@@ -192,7 +231,7 @@
           <h2>Bútorok, szaniter, konyha</h2>
           <div id="furniture-tree" class="furn-tree"></div>
           <p class="hint">Nyisd ki a kategóriát, válassz tárgyat, és kattints a rajzra az elhelyezéshez. V: kijelölés.</p>
-          <button id="clear-furniture-btn" class="btn">Összes bútor-tárgy törlése</button>
+          <button id="clear-furniture-btn" class="btn danger"><svg class="i" aria-hidden="true"><use href="#i-trash"/></svg><span>Összes bútor-tárgy törlése</span></button>
         </section>
         <section class="panel" id="furniture-options" hidden>
           <h2>Kijelölt tárgy</h2>
@@ -247,7 +286,7 @@
         <section class="panel">
           <h2>Rétegek</h2>
           <ul class="layer-list">
-            <li class="layer fixed">Falak, ajtók, ablakok <span class="muted">(mindig látható)</span></li>
+            <li class="layer fixed">Falak, ajtók, ablakok <span class="badge">mindig látható</span></li>
           </ul>
           <div id="layer-tree" class="layer-tree"></div>
         </section>
@@ -269,7 +308,10 @@
        felirat egymásra csúszik, ezért itt szűrhető. -->
   <div id="pdf-dialog" class="modal" hidden>
     <div class="modal-card">
-      <h2>PDF exportálás</h2>
+      <div class="modal-head">
+        <h2>PDF exportálás</h2>
+        <p>Lapméret, feliratok és a rajz tartalma</p>
+      </div>
       <div class="control-row">
         <label for="pdf-paper">Papír</label>
         <select id="pdf-paper">
@@ -315,17 +357,18 @@
        ugyanazt az ui.layerVisible-t állítják, mint a Rétegek panel. -->
   <div id="view3d" hidden>
     <div id="view3d-bar">
-      <span class="v3d-title">3D nézet</span>
+      <span class="v3d-title"><svg class="i" aria-hidden="true"><use href="#i-cube"/></svg>3D nézet</span>
       <label><input type="checkbox" data-v3d-layer="szaniter" checked> Szaniter</label>
       <label><input type="checkbox" data-v3d-layer="konyha" checked> Konyha</label>
       <label><input type="checkbox" data-v3d-layer="butor" checked> Bútorok</label>
       <label><input type="checkbox" data-v3d-layer="epulet" checked> Épületelemek</label>
-      <label title="A falak derékmagasságban elvágva, hogy a berendezés kívülről is látszódjon"><input type="checkbox" id="view3d-lowwalls" checked> Alacsony falak</label>
+      <span class="v3d-sep"></span>
+      <label title="A falak derékmagasságban elvágva, hogy a berendezés kívülről is látszódjon"><input type="checkbox" id="view3d-lowwalls" class="switch" checked> Alacsony falak</label>
       <label class="v3d-slider" title="A kamera és az emberke között álló falak áttetszősége — a hátsó falak tömörek maradnak">Közeli falak
         <input type="range" id="view3d-opacity" min="0" max="100" step="5" value="20">
       </label>
-      <span class="v3d-hint">Az emberkét húzva mozog a nézet · bal egér: forgatás · jobb egér: eltolás · görgő: nagyítás</span>
-      <button id="view3d-close" class="btn">Bezárás (Esc)</button>
+      <span class="v3d-hint" title="Az emberkét húzva mozog a nézet · bal egér: forgatás · jobb egér: eltolás · görgő: nagyítás">Emberke húzása: mozgás · bal: forgatás · jobb: eltolás · görgő: nagyítás</span>
+      <button id="view3d-close" class="btn" title="Bezárás (Esc)"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg><span>Bezárás</span><kbd>Esc</kbd></button>
     </div>
     <div id="view3d-canvas"></div>
   </div>

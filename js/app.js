@@ -12,7 +12,7 @@ import { initToast } from './modules/toast.js';
 import { initViewFit } from './modules/viewfit.js';
 import { initRightPanel } from './modules/rightpanel.js';
 import { initView3d } from './modules/view3d.js';
-import { renderAll } from './modules/render.js';
+import { renderAll, scheduleViewRender } from './modules/render.js';
 import { onChange } from './modules/state.js';
 import { load, initAutosave } from './modules/storage.js';
 
@@ -27,6 +27,6 @@ initViewFit();
 initView3d();
 initRightPanel();
 onChange(renderAll);
-onViewChange(renderAll);
+onViewChange(scheduleViewRender);
 initAutosave();
 load();

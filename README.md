@@ -50,7 +50,9 @@ Majd böngészőben: `http://<szerver>:8001/`
 ## Kódstruktúra
 
 - `index.html` – az oldal váza (fejléc, oldalsávok, SVG-vászon, PDF- és 3D-panel)
-- `css/style.css` – megjelenés
+- `css/style.css` – megjelenés: színtokenek világos és sötét témával (a rendszer
+  beállítását követi), a rajzvászon mindkettőben világos; a rajzjelek stílusai a
+  PDF-nyomtatásnál is ezek
 - `vendor/` – a repóba másolt three.js + OrbitControls (offline működéshez)
 - `js/app.js` – belépési pont
 

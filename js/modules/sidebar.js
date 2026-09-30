@@ -20,7 +20,20 @@ export function initSidebar() {
   S.onChange(render);
 }
 
-function render(state) {
+// Minden állapotváltozás ide fut (húzás közben egérmozdulatonként is), de a fa
+// csak a nevektől, a sorrendtől, az aktív szinttől és az összecsukástól függ —
+// ha ezek nem változtak, a DOM újraépítése felesleges.
+let lastSig = '';
+
+function render(state, force = false) {
+  const sig = JSON.stringify([
+    state.active,
+    state.properties.map(p => [p.id, p.name, p.levels.map(l => [l.id, l.name])]),
+    [...collapsed],
+  ]);
+  if (!force && sig === lastSig) return;
+  lastSig = sig;
+
   const prop = S.activeProperty();
   const level = S.activeLevel();
   titleEl.textContent = prop && level ? `${prop.name} · ${level.name}` : '– nincs ingatlan –';
@@ -127,7 +140,7 @@ function editInPlace(nameEl, current, apply) {
     done = true;
     const v = input.value.trim();
     if (commit && v && v !== current) apply(v);
-    else S.notify(); // visszarajzolás az eredeti névvel
+    else render(S.getState(), true); // visszarajzolás az eredeti névvel
   }
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') finish(true);

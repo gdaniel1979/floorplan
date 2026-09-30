@@ -22,7 +22,6 @@ import { showToast } from './toast.js';
 
 const WINDOW_SILL = 90;      // cm – ablak könyöklő-magassága, ha nincs külön megadva
 const FLOOR_LIFT = 0.4;      // cm – a padló ennyivel a 0 szint fölött, hogy ne villogjon
-const CATEGORY_LAYERS = ['szaniter', 'konyha', 'butor', 'epulet'];
 // cm – "babaházas" nézet: ilyen magasan elvágott falakkal a berendezés kívülről
 // is belátható (teljes magasságú falaknál csak felülről lehetne belesni)
 const LOW_WALL_H = 110;
@@ -539,7 +538,7 @@ function wallMaterials() {
   return { opaque: wallOpaqueMat, fade: wallFadeMat };
 }
 
-export function setWallOpacity(value) {
+function setWallOpacity(value) {
   wallOpacity = Math.max(0.02, Math.min(1, value));
   if (!wallFadeMat) return;
   wallFadeMat.opacity = wallOpacity;
@@ -887,6 +886,3 @@ function disposeTree(root) {
     }
   });
 }
-
-// a 3D fejléc réteg-kapcsolói és a Rétegek panel ugyanazt állítják
-export const VIEW3D_LAYERS = CATEGORY_LAYERS;

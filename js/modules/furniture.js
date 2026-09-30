@@ -104,7 +104,7 @@ export function catalogGroups(category) {
   return seen;
 }
 
-export function catalogItem(category, type) {
+function catalogItem(category, type) {
   return (CATALOG[category] || []).find(d => d.type === type) || null;
 }
 
@@ -251,7 +251,7 @@ export function wallSnapPosition(plan, item, x, y, tol) {
 // elforgatott rendszerében), és megkeressük az első falat, amit elmetsz. Így a
 // szám elforgatott tárgynál is a valódi távolságot mutatja, és a szemközti
 // oldalon lévő fal sem "látszik át" a közelebbin.
-export const FURNITURE_SIDES = ['left', 'right', 'back', 'front'];
+const FURNITURE_SIDES = ['left', 'right', 'back', 'front'];
 
 export function furnitureClearances(plan, item) {
   if (!item) return [];

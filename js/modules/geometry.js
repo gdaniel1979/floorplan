@@ -18,7 +18,7 @@ export function normal(a, b) {
 }
 
 // ív adatai: sugár, nyílásszög, ívhossz, nyílmagasság (sagitta)
-export function arcFromBulge(a, b, bulge) {
+function arcFromBulge(a, b, bulge) {
   const chord = dist(a, b);
   const s = Math.abs(bulge) * chord / 2;
   const r = ((chord / 2) ** 2 + s * s) / (2 * s);

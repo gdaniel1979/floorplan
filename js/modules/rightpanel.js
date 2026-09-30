@@ -15,16 +15,15 @@ export function initRightPanel() {
 }
 
 // Becsukás/kinyitás: a sáv keskeny csíkká zsugorodik, hogy a gomb elérhető
-// maradjon. A nyíl a MŰVELETET mutatja: nyitva ">>" (becsukás jobbra),
-// becsukva "<<" (kinyitás balra). Az állapot megjegyződik.
-export function setCollapsed(collapsed) {
+// maradjon. A nyíl a MŰVELETET mutatja (a CSS fordítja meg): nyitva jobbra
+// (becsukás), becsukva balra (kinyitás). Az állapot megjegyződik.
+function setCollapsed(collapsed) {
   const app = document.getElementById('app');
   const btn = document.getElementById('right-panel-toggle');
   if (!app || !btn) return;
   if (app.classList.contains('rpanel-collapsed') === collapsed) return; // nincs változás
 
   app.classList.toggle('rpanel-collapsed', collapsed);
-  btn.textContent = collapsed ? '«' : '»';
   btn.setAttribute('aria-expanded', String(!collapsed));
   btn.title = collapsed ? 'Sáv kinyitása' : 'Sáv becsukása';
   refreshViewport(); // a vászon arányát a sáv szélessége is befolyásolja
@@ -39,9 +38,9 @@ function initCollapse() {
   let start = false;
   try { start = localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { /* nincs mentett érték */ }
   // a kiinduló állapot beállítása: a setCollapsed csak VÁLTOZÁSKOR lép, ezért
-  // az alapértelmezett (nyitott) állapotnál is frissítjük a gomb feliratát
+  // az alapértelmezett (nyitott) állapotnál is frissítjük a gomb súgóját
   if (start) setCollapsed(true);
-  else { btn.textContent = '»'; btn.title = 'Sáv becsukása'; }
+  else btn.title = 'Sáv becsukása';
 
   btn.addEventListener('click', () => setCollapsed(!app.classList.contains('rpanel-collapsed')));
 }
@@ -60,8 +59,8 @@ function initTabs() {
   });
 }
 
-// máshonnan is hívható (pl. render.js, ha kijelölés miatt a Bútorok fület kell mutatni)
-export function activateTab(tab) {
+// a kért fül gombját kiemeli, a paneljét megjeleníti
+function activateTab(tab) {
   const tabs = document.getElementById('right-tabs');
   if (!tabs) return;
   for (const b of tabs.querySelectorAll('button[data-tab]')) {

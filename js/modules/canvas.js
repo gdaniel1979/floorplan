@@ -168,7 +168,7 @@ function buildGrid() {
     id: 'grid-minor', width: GRID_MINOR, height: GRID_MINOR, patternUnits: 'userSpaceOnUse',
   });
   minorPath = el('path', {
-    d: `M ${GRID_MINOR} 0 L 0 0 0 ${GRID_MINOR}`, fill: 'none', stroke: '#d5d9dd',
+    d: `M ${GRID_MINOR} 0 L 0 0 0 ${GRID_MINOR}`, fill: 'none', stroke: '#e3e6ea',
   });
   minor.appendChild(minorPath);
 
@@ -179,7 +179,7 @@ function buildGrid() {
     width: GRID_MAJOR, height: GRID_MAJOR, fill: 'url(#grid-minor)',
   });
   majorPath = el('path', {
-    d: `M ${GRID_MAJOR} 0 L 0 0 0 ${GRID_MAJOR}`, fill: 'none', stroke: '#b8bec5',
+    d: `M ${GRID_MAJOR} 0 L 0 0 0 ${GRID_MAJOR}`, fill: 'none', stroke: '#cbd0d7',
   });
   major.appendChild(majorFill);
   major.appendChild(majorPath);

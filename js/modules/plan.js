@@ -124,7 +124,7 @@ export function setWallInteriorLength(plan, w, interior, grow = 'auto') {
 //   'auto'    — a kevésbé beépített vég mozog; azonos fokszámnál a rajz
 //               közepétől TÁVOLABBI, hogy az épület kifelé nőjön, és a
 //               belső szerkezet maradjon a helyén
-export function growingEnd(plan, w, grow = 'auto') {
+function growingEnd(plan, w, grow = 'auto') {
   if (grow === 'a' || grow === 'b') return grow;
   const deg = nodeDegrees(plan);
   const da = deg.get(w.a) || 0, db = deg.get(w.b) || 0;
@@ -149,7 +149,7 @@ export function growingEnd(plan, w, grow = 'auto') {
 //
 // Ferde (se nem párhuzamos, se nem merőleges) szomszédnál nincs mit tenni:
 // az ilyen fal a mozgatástól szükségszerűen elfordul.
-export function setWallLength(plan, w, len, grow = 'auto') {
+function setWallLength(plan, w, len, grow = 'auto') {
   const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
   if (!a || !b) return;
   const current = G.wallLength(a, b, w.bulge || 0);
@@ -375,7 +375,7 @@ export function wallFacePlanes(plan) {
 }
 
 // csomópontok fokszáma (hány fal csatlakozik)
-export function nodeDegrees(plan) {
+function nodeDegrees(plan) {
   const deg = new Map();
   for (const w of plan.walls) {
     deg.set(w.a, (deg.get(w.a) || 0) + 1);

@@ -21,15 +21,15 @@ export function newId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-export function emptyPlan() {
+function emptyPlan() {
   return { nodes: [], walls: [], objects: [], rooms: [], furniture: [] };
 }
 
-export function newLevel(name) {
+function newLevel(name) {
   return { id: newId(), name, plan: emptyPlan() };
 }
 
-export function newProperty(name) {
+function newProperty(name) {
   return { id: newId(), name, levels: DEFAULT_LEVELS.map(newLevel) };
 }
 

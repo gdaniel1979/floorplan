@@ -142,7 +142,7 @@ export function wallShapeHoles(plan) {
 
 // a sziluett minden élére kiszámolja a méretezéshez szükséges töréspontokat
 // (a más falaktól odacsatlakozó csomópontok vetületét) és a kifelé mutató irányt
-export function dimensionChains(plan, silhouette) {
+function dimensionChains(plan, silhouette) {
   if (!silhouette) return [];
   const centroid = polyCentroid(silhouette);
   const n = silhouette.length;
