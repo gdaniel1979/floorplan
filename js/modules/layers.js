@@ -65,6 +65,22 @@ export function setGroup(groupKey, visible) {
   notify();
 }
 
+// A réteg-fa jelölőnégyzetei egyszer épülnek fel; ha a láthatóság nem róluk
+// változik (lásd showFurnitureLayers), innen értesülnek, hogy frissítsék magukat.
+const syncListeners = [];
+export function onLayersSync(fn) { syncListeners.push(fn); }
+
+// Tárgy elhelyezésre választásakor hívandó: bekapcsolja a kategóriáját
+// tartalmazó fő csoportot, hogy a lerakott tárgy ne maradjon láthatatlan.
+// A puszta böngészés (fülváltás, kategória kinyitása) szándékosan NEM kapcsol.
+export function showFurnitureLayers(category) {
+  const group = LAYER_GROUPS.find(g => g.children.some(c => c.key === category));
+  if (!group || groupState(group) === 'all') return;
+  for (const child of group.children) ui.layerVisible[child.key] = true;
+  for (const fn of syncListeners) fn();
+  notify();
+}
+
 // 'all' | 'none' | 'some' – a fő kapcsoló pipa/üres/félig állapotához
 export function groupState(group) {
   const on = group.children.filter(c => ui.layerVisible[c.key]).length;

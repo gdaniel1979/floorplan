@@ -24,9 +24,11 @@ export const ui = {
   windowHeight: 150,     // cm – az új ablakok magassága
   furnitureCategory: null,  // a bútor-palettában épp nyitva tartott kategória
   furniturePendingType: null, // a legközelebbi kattintásra elhelyezendő tárgy típusa (ui.tool==='furniture')
-  // a rajz ki-/bekapcsolható elemei — a fa-szerkezetét ld. layers.js
+  // a rajz ki-/bekapcsolható elemei — a fa-szerkezetét ld. layers.js.
+  // A bútor-tárgyak alapból rejtve vannak (a puszta alaprajz az alapnézet);
+  // tárgy elhelyezésre választásakor maguktól bekapcsolnak (showFurnitureLayers).
   layerVisible: {
-    szaniter: true, konyha: true, butor: true, epulet: true,
+    szaniter: false, konyha: false, butor: false, epulet: true,
     dimChains: true, wallLengths: true, openingSizes: true,
     roomName: true, roomArea: true, roomHeight: true, furnitureLabels: true,
     grid: true, origin: true,

@@ -27,7 +27,9 @@ függőség van, az is a repóba másolva (`vendor/`): a three.js a 3D nézethez
   teljes-hosszú méretvonalak.
 - **Helyiségek fül**: helyiségenkénti fal-felület a nyílászárók területével csökkentve.
 - **Rétegek**: a méretezés, feliratok, bútor-kategóriák, épületelemek és segédelemek
-  külön-külön ki/be kapcsolhatók.
+  külön-külön ki/be kapcsolhatók. A bútor-tárgyak (szaniter, konyha, bútorok) alapból
+  rejtve vannak, és maguktól bekapcsolnak, amikor a katalógusból tárgyat választasz
+  elhelyezésre.
 - **Mentés**: automatikusan localStorage-ba, plusz JSON export/import fájlba.
 - **PDF-export**: a böngésző nyomtatási párbeszédén keresztül („Mentés PDF-ként"),
   vektorosan. Állítható a lapméret (A4/A3), a tájolás és a feliratok papíron mért

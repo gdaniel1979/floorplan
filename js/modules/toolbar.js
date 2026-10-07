@@ -7,7 +7,7 @@ import { notify } from './state.js';
 import { snapshot, checkpoint } from './history.js';
 import { CATALOG, catalogGroups, LAYER_LABELS, setFurnitureSize, setFurnitureRotation, clearFurniture, setStairSteps, setStairDir, setStairShape, setStairArmW, setFurnitureColor } from './furniture.js';
 import { setRoomHeight } from './rooms.js';
-import { LAYER_GROUPS, setLayer, setGroup, groupState } from './layers.js';
+import { LAYER_GROUPS, setLayer, setGroup, groupState, onLayersSync, showFurnitureLayers } from './layers.js';
 import { resizeObject, setObjectHeight } from './objects.js';
 
 export function initToolbar() {
@@ -290,6 +290,10 @@ function buildLayerTree() {
     groupName.addEventListener('click', toggleCollapsed);
 
     syncGroupBox();
+    onLayersSync(() => {
+      group.children.forEach((child, i) => { childBoxes[i].checked = !!ui.layerVisible[child.key]; });
+      syncGroupBox();
+    });
     wrap.append(head, children);
     tree.appendChild(wrap);
   }
@@ -342,6 +346,7 @@ function initFurnitureControls() {
         li.addEventListener('click', () => {
           ui.furnitureCategory = category;
           ui.furniturePendingType = def.type;
+          showFurnitureLayers(category);
           setTool('furniture');
           for (const other of tree.querySelectorAll('.furn-item')) other.classList.toggle('active', other === li);
         });
