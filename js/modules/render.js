@@ -13,6 +13,7 @@ import { getDimensionChains, wallOnChains, exteriorSilhouette, wallShapeHoles } 
 import { rotatedPoint, rotateHandlePoint, isStair, stairShape, stairArmW, furnitureColor, furnitureClearances } from './furniture.js';
 import { furnitureSymbolParts, hasSymbol, hidesBody } from './symbols.js';
 import { computeRoomSurfaces } from './surfaces.js';
+import { renderMeasure } from './measure.js';
 
 export function renderAll() {
   const plan = renderDrawing();
@@ -208,6 +209,8 @@ function renderDrawing() {
     const label = roomLabel(room, trace, s);
     if (label) overlay.appendChild(label);
   }
+
+  renderMeasure(overlay, s); // a Mérés eszköz vonala mindennek a tetején
   return plan;
 }
 

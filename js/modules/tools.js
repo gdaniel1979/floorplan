@@ -9,7 +9,8 @@ import { ui } from './uistate.js';
 import { notify, activeLevel } from './state.js';
 import { snapshot, checkpoint } from './history.js';
 import { GRID_MINOR } from './config.js';
-import { renderAll } from './render.js';
+import { renderAll, scheduleViewRender } from './render.js';
+import { measureSnap, showMeasureHover } from './measure.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom, setRoomHeight } from './rooms.js';
 import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall, openingClearances, setOpeningClearance, pinOpenings } from './objects.js';
 import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint, wallSnapPosition, furnitureClearances, setFurnitureClearance } from './furniture.js';
@@ -72,6 +73,7 @@ const HINTS = {
   room: 'Kattints egy falakkal körbezárt terület belsejébe egy helyiség létrehozásához. V: kijelölés.',
   door: 'Kattints egy egyenes falra az ajtó elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
   window: 'Kattints egy egyenes falra az ablak elhelyezéséhez. Utólag a fal mentén húzható, a szélei a szélesség módosításához. V: kijelölés.',
+  measure: 'Nyomd le a bal gombot a kezdőpontban, húzd a végpontig, és engedd el: megjelenik a távolság cm-ben. A végek a fal sarkaira és síkjaira tapadnak; Shift: tapadás nélkül. Esc / V: kilépés.',
   furniture: 'Kattints a rajzra a kiválasztott tárgy elhelyezéséhez. Utólag húzható — fal közelében a széle a falsíkra tapad. Shift: 1 cm-es lépték, tapadás nélkül. Nyilakkal is tolható. Méret/forgatás/szín a Kijelölt tárgy panelen. V: kijelölés.',
   select: 'Kattints falra, helyiségre, nyílászáróra vagy bútorra a kijelöléshez; húzd a fogantyúkat. Bútor fal közelében a falsíkra tapad. Húzás közben Shift: 1 cm-es lépték, tapadás nélkül; kijelölt tárgyat a nyilak is tolnak (Shift: 10 cm). A hossz-/névcímkére kattintva szerkeszthető. Del: törlés. F: falrajzolás, R: helyiség. Szóköz+húzás (vagy középső gomb): nézet mozgatása bárhonnan.',
 };
@@ -83,6 +85,8 @@ export function setTool(tool) {
   ui.selectedObjectId = null;
   ui.selectedFurnitureId = null;
   if (tool !== 'furniture') ui.furniturePendingType = null;
+  ui.measure = null;
+  showMeasureHover(null);
   endChain();
   if (tool === 'wall') tryResumeChain();
   svg.dataset.tool = tool;
@@ -139,6 +143,12 @@ function onDown(e) {
 
   if (ui.tool === 'furniture') {
     placeFurniture(plan, p);
+    return;
+  }
+
+  if (ui.tool === 'measure') {
+    e.preventDefault();
+    startMeasure(plan, p, e.shiftKey);
     return;
   }
 
@@ -298,6 +308,36 @@ function placeRoom(plan, p, clientX, clientY) {
 
 function onMove(e) {
   if (ui.tool === 'wall' && draw) updatePreview(e);
+  if (ui.tool === 'measure' && !ui.dragging) {
+    const plan = getPlan();
+    if (plan) showMeasureHover(measureSnap(plan, clientToWorld(e.clientX, e.clientY), null, e.shiftKey));
+  }
+}
+
+// Mérés: lenyomás = kezdőpont, húzás = végpont, elengedés = a mérés marad
+function startMeasure(plan, p, shiftKey) {
+  const a = measureSnap(plan, p, null, shiftKey);
+  ui.measure = { a: { x: a.x, y: a.y }, b: { x: a.x, y: a.y } };
+  ui.dragging = true;
+  showMeasureHover(null);
+  scheduleViewRender();
+  function move(ev) {
+    const b = measureSnap(plan, clientToWorld(ev.clientX, ev.clientY), ui.measure.a, ev.shiftKey);
+    ui.measure.b = { x: b.x, y: b.y };
+    scheduleViewRender();
+    showMeasureHover(b);
+  }
+  function up(ev) {
+    move(ev);
+    window.removeEventListener('mousemove', move);
+    window.removeEventListener('mouseup', up);
+    ui.dragging = false;
+    // puszta kattintás (húzás nélkül): nincs mit mutatni
+    if (G.dist(ui.measure.a, ui.measure.b) < 0.5) ui.measure = null;
+    scheduleViewRender();
+  }
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
 }
 
 function onKey(e) {
@@ -323,7 +363,7 @@ function onKey(e) {
     }
   }
 
-  if (e.key === 'Escape' && (ui.tool === 'wall' || ui.tool === 'room' || ui.tool === 'door' || ui.tool === 'window' || ui.tool === 'furniture')) {
+  if (e.key === 'Escape' && (ui.tool === 'wall' || ui.tool === 'room' || ui.tool === 'door' || ui.tool === 'window' || ui.tool === 'furniture' || ui.tool === 'measure')) {
     setTool('select');
     return;
   }
@@ -384,6 +424,7 @@ function onKey(e) {
   if (e.key === 'v' || e.key === 'V') setTool('select');
   if (e.key === 'f' || e.key === 'F') setTool('wall');
   if (e.key === 'r' || e.key === 'R') setTool('room');
+  if (e.key === 'm' || e.key === 'M') setTool('measure');
 }
 
 // ---------------------------------------------------------------- falrajzolás

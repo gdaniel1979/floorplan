@@ -13,6 +13,10 @@ függőség van, az is a repóba másolva (`vendor/`): a three.js a 3D nézethez
 - **Rajzolás**: pontról pontra kattintva, közben a pontos hossz cm-ben begépelhető;
   minden él húzással is módosítható; az élhossz cm-ben mindig látszik az élen.
   Kijelölt falnál a két oldalán lévő szabad távolság is megjelenik, és átírható.
+- **Mérés** (M): lenyomott bal gombbal húzott egyenes, elengedéskor a hossza cm-ben.
+  A végpontok a falak valódi sarkaira és síkjaira tapadnak (így egy falszakasz
+  belmérete pontosan lemérhető), közel vízszintes/függőleges húzásnál egyenesít;
+  Shift: tapadás nélkül.
 - **Helyiségek**: egy zárt fal-terület belsejébe kattintva automatikusan felismerve
   (a valós, belső falsíkig mért nettó alapterülettel, hézagmentesen a szomszédos
   helyiségekkel); színezhetők, a helyiség közepén név + terület (m²) + belmagasság;

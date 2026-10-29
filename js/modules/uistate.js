@@ -1,7 +1,8 @@
 // Nem mentendő felület-állapot: aktív eszköz, kijelölés, falvastagság.
 
 export const ui = {
-  tool: 'select',        // 'select' | 'wall' | 'room' | 'door' | 'window' | 'furniture'
+  tool: 'select',        // 'select' | 'wall' | 'room' | 'door' | 'window' | 'furniture' | 'measure'
+  measure: null,         // a Mérés eszköz utolsó mérése: { a, b } (világ-koordinátában, cm)
   selectedWallId: null,
   selectedRoomId: null,
   selectedObjectId: null,

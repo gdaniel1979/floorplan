@@ -44,6 +44,7 @@
   --canvas-bg: #fbfbfc;
   --plan-sel: #2563eb;   /* kijelölés a rajzon */
   --plan-snap: #f59e0b;  /* illesztési jelzés a rajzon */
+  --plan-measure: #c2410c; /* a Mérés eszköz vonala és felirata */
 
   --topbar-h: 52px;
   --sidebar-w: 272px;
@@ -55,6 +56,7 @@
 /* sötét téma: a data-theme attribútumot az index.html fejében lévő szkript
    állítja be (mentett választás, ennek hiányában a rendszer beállítása) */
 :root[data-theme="dark"] {
+  --plan-measure: #fb923c;
   --bg: #0b0d11;
   --bg-side: #111318;
   --surface: #171a20;
@@ -432,7 +434,7 @@ kbd {
 
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   margin-bottom: 8px;
 }
@@ -482,6 +484,7 @@ kbd {
 }
 
 .tool-tile .i { width: 20px; height: 20px; }
+.tool-tile span { font-size: 11.5px; }
 
 .tool-tile kbd {
   position: absolute;
@@ -1374,6 +1377,24 @@ input.rename {
 .preview-dot {
   fill: var(--plan-sel);
   pointer-events: none;
+}
+
+/* Mérés eszköz */
+.measure-line {
+  stroke: var(--plan-measure);
+  fill: none;
+  pointer-events: none;
+}
+
+.measure-label {
+  fill: var(--plan-measure);
+  font-family: var(--font);
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--canvas-bg);
+  stroke-width: 4px;
+  pointer-events: none;
+  user-select: none;
 }
 
 .snap-hint {
