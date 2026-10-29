@@ -35,6 +35,12 @@ függőség van, az is a repóba másolva (`vendor/`): a three.js a 3D nézethez
   rejtve vannak, és maguktól bekapcsolnak, amikor a katalógusból tárgyat választasz
   elhelyezésre.
 - **Mentés**: automatikusan localStorage-ba, plusz JSON export/import fájlba.
+- **Mentés a My Life-ba**: a Mentés menüből egy kattintással a szerverre küldi az összes
+  megrajzolt szintet vektoros SVG-ként (puszta alaprajz + berendezett) és a teljes ingatlant
+  JSON-ként. A My Life Otthon › Alaprajz oldala ezeket mutatja, a szerver pedig minden
+  mentésnél dátumozott biztonsági másolatot tesz el a JSON-ról. Csak akkor fogadja el, ha
+  ugyanebben a böngészőben be vagy lépve a My Life-ba (a fogadó: `my_life/sync/floorplan_publish.py`,
+  az nginx-útvonal: `deploy/nginx-floorplan.conf`).
 - **PDF-export**: a böngésző nyomtatási párbeszédén keresztül („Mentés PDF-ként"),
   vektorosan. Állítható a lapméret (A4/A3), a tájolás és a feliratok papíron mért
   mérete; a tartalom rétegenként szűrhető, hogy egy teljes alaprajz se legyen zsúfolt.
@@ -98,6 +104,7 @@ Megjelenítés és kezelőfelület:
 - `js/modules/historybar.js` – visszavonás/ismétlés gombok + billentyűk
 - `js/modules/savemenu.js` – Mentés-menü (export/import, PDF)
 - `js/modules/pdfexport.js` – PDF-export (nyomtatási nézet, beállításokkal)
+- `js/modules/publish.js` – Mentés a My Life-ba (szintenkénti SVG + JSON a szerverre)
 - `js/modules/view3d.js` – 3D nézet (three.js)
 - `js/modules/toast.js` – rövid, magától eltűnő visszajelzés
 - `js/modules/theme.js` – világos/sötét téma kapcsoló

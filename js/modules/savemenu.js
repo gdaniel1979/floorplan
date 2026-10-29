@@ -2,6 +2,7 @@
 
 import { exportJson, importJson } from './storage.js';
 import { initPdfExport, openPdfDialog } from './pdfexport.js';
+import { publishToMyLife } from './publish.js';
 
 export function initSaveMenu() {
   initPdfExport();
@@ -30,6 +31,12 @@ export function initSaveMenu() {
   document.getElementById('export-pdf').addEventListener('click', () => {
     menu.hidden = true;
     openPdfDialog();
+  });
+
+  // a rajz vektorosan + a teljes ingatlan biztonsági mentésként a My Life-ba (publish.js)
+  document.getElementById('publish-mylife').addEventListener('click', () => {
+    menu.hidden = true;
+    publishToMyLife();
   });
 
   document.getElementById('import-json').addEventListener('click', () => {
