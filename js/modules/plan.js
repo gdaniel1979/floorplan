@@ -97,6 +97,29 @@ export function endDeductionAt(plan, node, dir, excludeWallId) {
     if (Math.abs(dir.x * oDir.x + dir.y * oDir.y) > 0.999) continue; // egyenes folytatás
     max = Math.max(max, o.thickness / 2);
   }
+  // T-csatlakozás KÖZÖS CSOMÓPONT NÉLKÜL: a fal vége egy másik fal testébe
+  // fut, de nem pontosan a tengelyére (pl. pár centivel mellé), ezért a
+  // wallrepair nem vágta ott ketté azt a falat. Ilyenkor is a falsíkig mérünk:
+  // a levonás a csomóponttól a `dir` felé eső falsíkig tartó távolság.
+  for (const o of plan.walls) {
+    if (o.id === excludeWallId || o.bulge) continue;
+    if (o.a === node.id || o.b === node.id) continue;
+    const a = nodeById(plan, o.a), b = nodeById(plan, o.b);
+    if (!a || !b) continue;
+    const len = G.dist(a, b);
+    if (len < 1e-6) continue;
+    const half = o.thickness / 2;
+    const u = G.unit(a, b);
+    const along = (node.x - a.x) * u.x + (node.y - a.y) * u.y;
+    if (along < -half || along > len + half) continue;
+    let nrm = G.normal(a, b);
+    let cos = nrm.x * dir.x + nrm.y * dir.y;
+    if (Math.abs(cos) < 0.5) continue; // nagyjából párhuzamos: nem vág bele
+    if (cos < 0) { nrm = { x: -nrm.x, y: -nrm.y }; cos = -cos; }
+    const t = (node.x - a.x) * nrm.x + (node.y - a.y) * nrm.y; // eltérés a tengelytől, `dir` felé
+    if (Math.abs(t) > half) continue; // nincs a fal testében
+    max = Math.max(max, (half - t) / cos);
+  }
   return max;
 }
 
