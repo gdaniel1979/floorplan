@@ -3,6 +3,7 @@
 
 import { activeLevel, newId, notify } from './state.js';
 import * as G from './geometry.js';
+import { pinOpenings } from './objects.js';
 
 export function getPlan() {
   const level = activeLevel();
@@ -168,8 +169,10 @@ function setWallLength(plan, w, len, grow = 'auto') {
 
   // ívnél nincs mit merevíteni, marad a régi, egyszerű nyújtás
   if (w.bulge) {
+    const restore = pinOpenings(plan, [movingId]);
     moving.x = round1(fixed.x + dirX * len);
     moving.y = round1(fixed.y + dirY * len);
+    restore();
     notify();
     return;
   }
@@ -199,11 +202,13 @@ function setWallLength(plan, w, len, grow = 'auto') {
   // ilyenkor inkább csak a végpontot mozgatjuk (a régi viselkedés)
   if (move.has(fixed.id)) move.clear(), move.add(movingId);
 
+  const restore = pinOpenings(plan, move);
   for (const id of move) {
     const n = nodeById(plan, id);
     n.x = round1(n.x + d.x);
     n.y = round1(n.y + d.y);
   }
+  restore();
   notify();
 }
 
@@ -309,10 +314,12 @@ export function setWallClearance(plan, w, sideKey, value) {
   if (Math.abs(delta) < 0.01) return;
   const dirSign = -Math.sign(side.offset); // a szomszédtól ELFELÉ növelünk
   const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
+  const restore = pinOpenings(plan, [w.a, w.b]);
   for (const n of [a, b]) {
     n.x = round1(n.x + c.nrm.x * dirSign * delta);
     n.y = round1(n.y + c.nrm.y * dirSign * delta);
   }
+  restore();
   notify();
 }
 
@@ -341,10 +348,12 @@ export function setWallThickness(plan, w, thickness, align = 'center') {
 
   const n = G.normal(a, b);
   const shift = (align === 'plus' ? -1 : 1) * delta / 2;
+  const restore = pinOpenings(plan, [w.a, w.b]);
   for (const node of [a, b]) {
     node.x = round1(node.x + n.x * shift);
     node.y = round1(node.y + n.y * shift);
   }
+  restore();
   notify();
 }
 

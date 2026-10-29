@@ -159,6 +159,32 @@ export function setOpeningClearance(plan, obj, which, value) {
   notify();
 }
 
+// --- a nyílászárók helyben tartása csomópont-mozgatáskor ---
+//
+// Az "offset" az a-csomóponttól mérődik, ezért ha egy fal a-vége elmozdul
+// (pl. egy csatlakozó falat húzunk el), a nyílás vele vándorolna. A mozgatás
+// előtt rögzítjük a nyílások abszolút középpontját azokon a falakon, amelyeknek
+// csak az EGYIK vége mozdul; a visszaadott függvény minden lépés után az új
+// falvonalra vetítve visszaállítja őket. Ha a fal mindkét vége együtt mozdul
+// (a fal egészét toljuk), a nyílás a fallal együtt halad — azt nem rögzítjük.
+export function pinOpenings(plan, nodeIds) {
+  const moved = new Set(nodeIds);
+  const pins = [];
+  for (const obj of plan.objects) {
+    const w = wallById(plan, obj.wallId);
+    if (!w || w.bulge || moved.has(w.a) === moved.has(w.b)) continue;
+    const g = objectGeometry(plan, obj);
+    if (g) pins.push({ obj, w, center: g.center });
+  }
+  return () => {
+    for (const { obj, w, center } of pins) {
+      const len = wallLengthOf(plan, w);
+      if (!(len > 0)) continue;
+      obj.offset = clampOffset(offsetOnWall(plan, w, center), obj.width, len);
+    }
+  };
+}
+
 // a kattintott ponthoz legközelebbi "offset" egy egyenes falon (a-tól mérve)
 export function offsetOnWall(plan, wall, p) {
   const a = nodeById(plan, wall.a), b = nodeById(plan, wall.b);

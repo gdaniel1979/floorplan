@@ -11,7 +11,7 @@ import { snapshot, checkpoint } from './history.js';
 import { GRID_MINOR } from './config.js';
 import { renderAll } from './render.js';
 import { addRoomAt, renameRoom, recolorRoom, deleteRoom, setRoomHeight } from './rooms.js';
-import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall, openingClearances, setOpeningClearance } from './objects.js';
+import { addObject, deleteObject, moveObjectAlongWall, resizeObjectEdge, offsetOnWall, openingClearances, setOpeningClearance, pinOpenings } from './objects.js';
 import { addFurniture, deleteFurniture, moveFurniture, snappedRotationInfo, rotateHandlePoint, wallSnapPosition, furnitureClearances, setFurnitureClearance } from './furniture.js';
 import { showToast } from './toast.js';
 import { repairWallNetwork } from './wallrepair.js';
@@ -658,7 +658,7 @@ function startHandleDrag(plan, kind, wallId, startP) {
   } else {
     const nodeId = kind === 'a' ? w.a : w.b;
     const otherId = kind === 'a' ? w.b : w.a;
-    drag = { kind: 'node', nodeId, otherId, thickness: w.thickness, before };
+    drag = { kind: 'node', nodeId, otherId, thickness: w.thickness, before, pins: pinOpenings(plan, [nodeId]) };
   }
   bindDrag(plan);
 }
@@ -669,7 +669,8 @@ function startBodyDrag(plan, wallId, startP) {
   const a = nodeById(plan, w.a), b = nodeById(plan, w.b);
   const before = snapshot();
   ui.dragging = true;
-  drag = { kind: 'body', w, orig: { ax: a.x, ay: a.y, bx: b.x, by: b.y }, start: startP, before };
+  drag = { kind: 'body', w, orig: { ax: a.x, ay: a.y, bx: b.x, by: b.y }, start: startP, before,
+           pins: pinOpenings(plan, [w.a, w.b]) };
   bindDrag(plan);
 }
 
@@ -746,6 +747,7 @@ function applyDrag(plan, p, shiftKey) {
       }
     }
     else { const g = G.snapToGrid(p, GRID_MINOR); n.x = g.x; n.y = g.y; }
+    drag.pins(); // a csatlakozó falak nyílásai maradjanak a helyükön
     notify();
     // az illesztés jelzése oda kerül, ahova a végpont TÉNYLEGESEN ugrott
     if (near && dNode <= dWall) {
@@ -768,6 +770,7 @@ function applyDrag(plan, p, shiftKey) {
     const a = nodeById(plan, drag.w.a), b = nodeById(plan, drag.w.b);
     a.x = drag.orig.ax + dx; a.y = drag.orig.ay + dy;
     b.x = drag.orig.bx + dx; b.y = drag.orig.by + dy;
+    drag.pins();
     notify();
   } else if (drag.kind === 'mid') {
     const a = nodeById(plan, drag.w.a), b = nodeById(plan, drag.w.b);
